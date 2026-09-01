@@ -1,4 +1,5 @@
 import { useState } from "react";
+import floresLogo from "@/assets/Flores.png";
 
 interface LoginProps {
   onLogin: (username: string, password: string) => void;
@@ -38,7 +39,7 @@ export default function Login({ onLogin }: LoginProps) {
               className="w-32 h-32 rounded-full overflow-hidden shadow-lg flex items-center justify-center bg-white"
             >
               <img
-                src="/Flores.png"
+                src={floresLogo}
                 alt="Logo Sistema Almacén"
                 className="w-full h-full object-cover"
               />
