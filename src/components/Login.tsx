@@ -34,16 +34,11 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {/* Logo Section */}
           <div className="flex justify-center mb-8">
-            <div 
-              className="w-32 h-32 rounded-full overflow-hidden shadow-lg flex items-center justify-center bg-white border-4"
-              style={{ borderColor: "#C41E3A" }}
-            >
-              <img
-                src="./assets/Flores.png"
-                alt="Logo Sistema Almacén"
-                className="w-full h-full object-cover"
-              />
-            </div>
+            <img
+              src="./assets/Flores.png"
+              alt="Logo Sistema Almacén"
+              className="w-32 h-32 rounded-full object-cover shadow-lg"
+            />
           </div>
 
           {/* Header */}
