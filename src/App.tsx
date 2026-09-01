@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StoreProvider } from "./store";
 import Dashboard from "./components/Dashboard";
+import Registrar from "./components/Registrar";
 import Inventory from "./components/Inventory";
 import Entries from "./components/Entries";
 import Exits from "./components/Exits";
@@ -9,13 +10,18 @@ import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
 import floresLogo from "./assets/Flores.png";
 
-type Page = "inicio" | "inventario" | "entradas" | "salidas" | "fechas" | "buscar" | "exportar";
+type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "fechas" | "buscar" | "exportar";
 
 const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   {
     id: "inicio",
     label: "Inicio",
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
+  },
+  {
+    id: "registrar",
+    label: "Registrar",
+    icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v16m8-8H4" /></svg>,
   },
   {
     id: "inventario",
@@ -51,6 +57,7 @@ const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
 
 function PageContent({ page }: { page: Page }) {
   if (page === "inicio") return <Dashboard />;
+  if (page === "registrar") return <Registrar />;
   if (page === "inventario") return <Inventory />;
   if (page === "entradas") return <Entries />;
   if (page === "salidas") return <Exits />;
