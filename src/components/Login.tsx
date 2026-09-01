@@ -35,30 +35,13 @@ export default function Login({ onLogin }: LoginProps) {
           {/* Logo Section */}
           <div className="flex justify-center mb-8">
             <div 
-              className="w-32 h-32 rounded-full overflow-hidden border-4 shadow-lg flex items-center justify-center bg-gradient-to-br from-white to-gray-50"
-              style={{ borderColor: "#C41E3A" }}
+              className="w-32 h-32 rounded-full overflow-hidden shadow-lg flex items-center justify-center bg-white"
             >
-              <svg viewBox="0 0 200 200" className="w-full h-full">
-                <circle cx="100" cy="100" r="95" fill="none" stroke="#C41E3A" strokeWidth="6"/>
-                <text 
-                  x="100" 
-                  y="85" 
-                  textAnchor="middle" 
-                  className="font-bold fill-slate-900" 
-                  fontSize="16"
-                >
-                  Logo Sistema
-                </text>
-                <text 
-                  x="100" 
-                  y="110" 
-                  textAnchor="middle" 
-                  className="font-bold fill-slate-900" 
-                  fontSize="16"
-                >
-                  Almacén
-                </text>
-              </svg>
+              <img
+                src="/Flores.png"
+                alt="Logo Sistema Almacén"
+                className="w-full h-full object-cover"
+              />
             </div>
           </div>
 
