@@ -8,7 +8,6 @@ import Exits from "./components/Exits";
 import DateSearch from "./components/DateSearch";
 import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
-import floresLogo from "./assets/Flores.png";
 
 type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "fechas" | "buscar" | "exportar";
 
@@ -78,16 +77,6 @@ export default function App() {
         <aside
           className={`flex-shrink-0 flex flex-col bg-slate-900 text-white transition-all duration-200 ${sidebarOpen ? "w-52" : "w-14"} overflow-hidden`}
         >
-          {/* Logo */}
-          <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-slate-700/60">
-            <img
-              src={floresLogo}
-              alt="Logo Flores"
-              className="w-7 h-7 rounded-full object-cover border border-slate-600/80 shadow-xs flex-shrink-0 bg-white"
-            />
-            {sidebarOpen && <span className="font-semibold text-sm tracking-tight whitespace-nowrap">Sistema Almacén</span>}
-          </div>
-
           {/* Nav */}
           <nav className="flex-1 py-3 flex flex-col gap-0.5">
             {NAV_ITEMS.map((item) => (
