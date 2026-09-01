@@ -53,6 +53,7 @@ export interface Movement {
   categoria?: string;
   tipo: MovementType;
   imagen?: string;
+  motivo?: string;
 }
 
 export interface InventoryItem {

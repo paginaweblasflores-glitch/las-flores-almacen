@@ -15,6 +15,7 @@ const empty = (defaultCat?: string) => ({
   categoria: defaultCat || DEFAULT_CATEGORIES[0],
   tipo: "Entrada" as MovementType,
   imagen: "",
+  motivo: "",
 });
 
 // Compress image to lightweight Base64
@@ -238,6 +239,7 @@ export default function MovementForm() {
       cantidad: "",
       valor: "",
       imagen: "",
+      motivo: "",
     }));
     setIsCustomValor(false);
     setError("");
@@ -282,6 +284,7 @@ export default function MovementForm() {
       categoria: form.categoria,
       tipo: form.tipo,
       imagen: form.imagen ? form.imagen : undefined,
+      motivo: form.tipo === "Salida" && form.motivo ? form.motivo.trim() : undefined,
     });
 
     if (err) {
@@ -750,6 +753,34 @@ export default function MovementForm() {
             />
           </div>
         </div>
+
+        {/* Motivo (solo para Salidas) */}
+        {form.tipo === "Salida" && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="motivo" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              Motivo de salida <span className="text-slate-400 font-normal lowercase">(opcional)</span>
+            </label>
+            <select
+              id="motivo"
+              value={form.motivo}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, motivo: e.target.value }));
+                setError("");
+              }}
+              className="input"
+            >
+              <option value="">-- Seleccionar motivo --</option>
+              <option value="Uso interno">Uso interno</option>
+              <option value="Venta">Venta</option>
+              <option value="Donación">Donación</option>
+              <option value="Devolución">Devolución</option>
+              <option value="Daño/Pérdida">Daño/Pérdida</option>
+              <option value="Inventario">Inventario</option>
+              <option value="Transferencia">Transferencia</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        )}
 
         {/* Imagen del Producto */}
         <div className="flex flex-col gap-1">

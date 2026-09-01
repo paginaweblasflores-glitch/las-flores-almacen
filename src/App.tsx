@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { StoreProvider } from "./store";
+import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import Registrar from "./components/Registrar";
 import Inventory from "./components/Inventory";
@@ -69,6 +70,30 @@ function PageContent({ page }: { page: Page }) {
 export default function App() {
   const [page, setPage] = useState<Page>("inicio");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem("isLoggedIn") === "true";
+  });
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      localStorage.setItem("isLoggedIn", "true");
+    } else {
+      localStorage.removeItem("isLoggedIn");
+    }
+  }, [isAuthenticated]);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+  };
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <StoreProvider>
@@ -102,15 +127,30 @@ export default function App() {
             ))}
           </nav>
 
-          {/* Toggle */}
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="flex items-center justify-center p-3 text-slate-500 hover:text-slate-300 border-t border-slate-700/60 transition-colors"
-          >
-            <svg className={`w-4 h-4 transition-transform ${sidebarOpen ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-          </button>
+          {/* Bottom Buttons */}
+          <div className="flex flex-col gap-0.5 border-t border-slate-700/60">
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="flex items-center justify-center gap-2 p-3 text-slate-500 hover:text-red-400 hover:bg-slate-800/60 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              {sidebarOpen && <span className="text-sm">Cerrar sesión</span>}
+            </button>
+
+            {/* Toggle Button */}
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="flex items-center justify-center p-3 text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <svg className={`w-4 h-4 transition-transform ${sidebarOpen ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
+          </div>
         </aside>
 
         {/* Main */}
