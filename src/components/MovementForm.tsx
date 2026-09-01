@@ -760,25 +760,17 @@ export default function MovementForm() {
             <label htmlFor="motivo" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
               Motivo de salida <span className="text-slate-400 font-normal lowercase">(opcional)</span>
             </label>
-            <select
+            <input
               id="motivo"
+              type="text"
               value={form.motivo}
               onChange={(e) => {
                 setForm((f) => ({ ...f, motivo: e.target.value }));
                 setError("");
               }}
+              placeholder="Ej. Uso interno, Venta, Donación, Devolución..."
               className="input"
-            >
-              <option value="">-- Seleccionar motivo --</option>
-              <option value="Uso interno">Uso interno</option>
-              <option value="Venta">Venta</option>
-              <option value="Donación">Donación</option>
-              <option value="Devolución">Devolución</option>
-              <option value="Daño/Pérdida">Daño/Pérdida</option>
-              <option value="Inventario">Inventario</option>
-              <option value="Transferencia">Transferencia</option>
-              <option value="Otro">Otro</option>
-            </select>
+            />
           </div>
         )}
 
