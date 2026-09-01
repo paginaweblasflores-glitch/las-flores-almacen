@@ -77,6 +77,13 @@ export default function App() {
         <aside
           className={`flex-shrink-0 flex flex-col bg-slate-900 text-white transition-all duration-200 ${sidebarOpen ? "w-52" : "w-14"} overflow-hidden`}
         >
+          {/* Title */}
+          {sidebarOpen && (
+            <div className="px-4 py-3.5 border-b border-slate-700/60">
+              <span className="font-semibold text-sm tracking-tight">Sistema Almacén</span>
+            </div>
+          )}
+
           {/* Nav */}
           <nav className="flex-1 py-3 flex flex-col gap-0.5">
             {NAV_ITEMS.map((item) => (
