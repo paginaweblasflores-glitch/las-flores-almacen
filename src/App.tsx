@@ -8,7 +8,7 @@ import Exits from "./components/Exits";
 import DateSearch from "./components/DateSearch";
 import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
-const floresLogo = new URL("./assets/Flores.png", import.meta.url).href;
+import floresLogo from "./assets/Flores.png";
 
 type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "fechas" | "buscar" | "exportar";
 
