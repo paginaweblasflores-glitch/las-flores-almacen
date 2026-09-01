@@ -150,7 +150,7 @@ export default function Inventory() {
                       <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">bajo</span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-slate-600">${item.valor.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-slate-600">S/ {item.valor.toFixed(2)}</td>
                   <td className="px-4 py-3 text-slate-500">{item.fechaActualizacion.split("-").reverse().join("/")}</td>
                   <td className="px-4 py-3 text-slate-600">{item.responsable}</td>
                   <td className="px-4 py-3">

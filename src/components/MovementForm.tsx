@@ -390,7 +390,7 @@ export default function MovementForm() {
                 </span>
                 <span className="text-slate-300">•</span>
                 <span>
-                  Precio ref: <strong className="text-slate-800">${matchedItem.valor.toFixed(2)} c/u</strong>
+                  Precio ref: <strong className="text-slate-800">S/ {matchedItem.valor.toFixed(2)} c/u</strong>
                 </span>
               </div>
             </div>
@@ -514,7 +514,7 @@ export default function MovementForm() {
                       >
                         {item.cantidadDisponible} un.
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">${item.valor.toFixed(2)} c/u</span>
+                      <span className="text-[10px] text-slate-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
                     </div>
                   </button>
                 ))}
@@ -597,7 +597,7 @@ export default function MovementForm() {
                       >
                         {item.cantidadDisponible} un.
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">${item.valor.toFixed(2)} c/u</span>
+                      <span className="text-[10px] text-slate-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
                     </div>
                   </button>
                 ))}
@@ -644,12 +644,12 @@ export default function MovementForm() {
 
           {/* Valor */}
           <Field
-            label="Valor Total ($)"
+            label="Valor Total (S/)"
             id="valor"
             action={
               matchedItem && (
                 <span className="text-[11px] text-slate-400">
-                  Ref: ${matchedItem.valor.toFixed(2)} c/u
+                  Ref: S/ {matchedItem.valor.toFixed(2)} c/u
                 </span>
               )
             }

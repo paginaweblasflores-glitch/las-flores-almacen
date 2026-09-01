@@ -216,7 +216,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
 
             {/* Valor */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Valor Total ($)</label>
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Valor Total (S/)</label>
               <input
                 type="number"
                 min="0"

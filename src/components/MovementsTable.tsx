@@ -77,7 +77,7 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-slate-700">{m.cantidad}</td>
-                  <td className="px-4 py-3 text-right font-mono text-slate-600">${m.valor.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-slate-600">S/ {m.valor.toFixed(2)}</td>
                   <td className="px-4 py-3 text-slate-500">{m.fecha.split("-").reverse().join("/")}</td>
                   <td className="px-4 py-3 text-slate-600">{m.responsable}</td>
                   <td className="px-4 py-3">

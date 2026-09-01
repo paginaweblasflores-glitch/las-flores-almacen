@@ -78,7 +78,7 @@ export default function Registrar() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono text-slate-700">{m.cantidad}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-slate-700">${m.valor.toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-slate-700">S/ {m.valor.toFixed(2)}</td>
                   <td className="px-4 py-2.5 text-slate-500">{m.fecha.split("-").reverse().join("/")}</td>
                   <td className="px-4 py-2.5 text-slate-600">{m.responsable}</td>
                   <td className="px-4 py-2.5 text-center">
