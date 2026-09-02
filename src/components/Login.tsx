@@ -32,15 +32,6 @@ export default function Login({ onLogin }: LoginProps) {
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#C41E3A" }}>
       <div className="w-full max-w-md px-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          {/* Logo Section */}
-          <div className="flex justify-center mb-8">
-            <img
-              src="/logo.png"
-              alt="Logo Sistema Almacén"
-              className="w-32 h-32 object-contain shadow-lg"
-            />
-          </div>
-
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">Sistema Almacén</h1>
