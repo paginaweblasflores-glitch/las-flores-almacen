@@ -1,5 +1,5 @@
 import { useState } from "react";
-import floresImage from "../assets/flores.png";
+import floresImage from "../assets/Flores.png";
 
 interface LoginProps {
   onLogin: (username: string, password: string) => void;
