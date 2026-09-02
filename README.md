@@ -21,6 +21,18 @@ Para crear una compilacion de produccion:
 pnpm run build
 ```
 
+## Importar almacen.xlsx
+
+El archivo `src/xlsx/almacen.xlsx` contiene 329 productos. Para importarlo en Supabase, asegúrate de haber creado el usuario de autenticación y ejecuta en PowerShell:
+
+```powershell
+$env:IMPORT_PASSWORD = "TU_CONTRASEÑA_DE_SUPABASE"
+pnpm run import:almacen
+Remove-Item Env:IMPORT_PASSWORD
+```
+
+El importador usa IDs deterministas y `upsert`, por lo que puede repetirse sin duplicar los registros. Importa las entradas y salidas de cada código, conserva el stock calculado y no guarda la contraseña.
+
 ## Variables de entorno
 
 Copia `.env.example` como `.env` y completa los valores de Supabase:
