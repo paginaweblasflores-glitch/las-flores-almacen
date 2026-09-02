@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { Movement, InventoryItem } from "./types";
 import { DEFAULT_CATEGORIES } from "./types";
+import { supabase } from "./supabaseClient";
 
 const STORAGE_KEY = "SISTEMA_ALMACEN_MOVEMENTS_V1";
 const CATEGORIES_STORAGE_KEY = "SISTEMA_ALMACEN_CATEGORIES_V1";
@@ -41,6 +42,40 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
     }
   }
   return map;
+}
+
+function movementFromRow(row: Record<string, unknown>): Movement {
+  return {
+    id: String(row.id),
+    codigo: String(row.codigo),
+    descripcion: String(row.descripcion),
+    cantidad: Number(row.cantidad),
+    valor: Number(row.valor),
+    fecha: String(row.fecha),
+    responsable: String(row.responsable),
+    area: String(row.area),
+    categoria: row.categoria ? String(row.categoria) : undefined,
+    tipo: row.tipo as Movement["tipo"],
+    imagen: row.imagen ? String(row.imagen) : undefined,
+    motivo: row.motivo ? String(row.motivo) : undefined,
+  };
+}
+
+function movementToRow(movement: Movement) {
+  return {
+    id: movement.id,
+    codigo: movement.codigo,
+    descripcion: movement.descripcion,
+    cantidad: movement.cantidad,
+    valor: movement.valor,
+    fecha: movement.fecha,
+    responsable: movement.responsable,
+    area: movement.area,
+    categoria: movement.categoria ?? null,
+    tipo: movement.tipo,
+    imagen: movement.imagen ?? null,
+    motivo: movement.motivo ?? null,
+  };
 }
 
 interface StoreCtx {
@@ -104,6 +139,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [movements]);
 
+  useEffect(() => {
+    if (!supabase) return;
+
+    async function loadFromSupabase() {
+      const [movementResult, categoryResult] = await Promise.all([
+        supabase.from("movements").select("*").order("fecha", { ascending: true }),
+        supabase.from("categories").select("name").order("name"),
+      ]);
+
+      if (movementResult.error) {
+        console.error("Error cargando movimientos desde Supabase:", movementResult.error);
+      } else {
+        setMovements((movementResult.data ?? []).map(movementFromRow));
+      }
+
+      if (categoryResult.error) {
+        console.error("Error cargando categorías desde Supabase:", categoryResult.error);
+      } else if (categoryResult.data?.length) {
+        setCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...categoryResult.data.map((row) => row.name)])));
+      }
+    }
+
+    void loadFromSupabase();
+  }, []);
+
   const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
 
   function addCategory(categoryName: string): { success: boolean; message?: string } {
@@ -116,6 +176,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return { success: false, message: "Esta categoría ya existe." };
     }
     setCategories((prev) => [...prev, trimmed]);
+    if (supabase) {
+      void supabase.from("categories").insert({ name: trimmed }).then(({ error }) => {
+        if (error) console.error("Error guardando categoría en Supabase:", error);
+      });
+    }
     return { success: true };
   }
 
@@ -132,6 +197,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       id: Date.now().toString(),
     };
     setMovements((prev) => [...prev, newM]);
+    if (supabase) {
+      void supabase.from("movements").insert(movementToRow(newM)).then(({ error }) => {
+        if (error) console.error("Error guardando movimiento en Supabase:", error);
+      });
+    }
     return null;
   }
 
@@ -158,6 +228,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : m
       )
     );
+    if (supabase) {
+      void supabase.from("movements").upsert(movementToRow({ ...updated, id })).then(({ error }) => {
+        if (error) console.error("Error actualizando movimiento en Supabase:", error);
+      });
+    }
     return null;
   }
 
@@ -177,19 +252,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : m
       )
     );
+    if (supabase) {
+      void supabase.from("movements").update({
+        codigo: updated.codigo.toUpperCase().trim(),
+        descripcion: updated.descripcion.trim(),
+        area: updated.area,
+        categoria: updated.categoria ?? null,
+        imagen: updated.imagen ?? null,
+      }).ilike("codigo", oldCodigo.trim()).then(({ error }) => {
+        if (error) console.error("Error actualizando producto en Supabase:", error);
+      });
+    }
   }
 
   function deleteMovement(id: string) {
     setMovements((prev) => prev.filter((m) => m.id !== id));
+    if (supabase) {
+      void supabase.from("movements").delete().eq("id", id).then(({ error }) => {
+        if (error) console.error("Error eliminando movimiento en Supabase:", error);
+      });
+    }
   }
 
   function deleteProduct(codigo: string) {
     const upper = codigo.toUpperCase().trim();
     setMovements((prev) => prev.filter((m) => m.codigo.toUpperCase().trim() !== upper));
+    if (supabase) {
+      void supabase.from("movements").delete().ilike("codigo", upper).then(({ error }) => {
+        if (error) console.error("Error eliminando producto en Supabase:", error);
+      });
+    }
   }
 
   function clearAll() {
     setMovements([]);
+    if (supabase) {
+      void supabase.from("movements").delete().neq("id", "").then(({ error }) => {
+        if (error) console.error("Error limpiando movimientos en Supabase:", error);
+      });
+    }
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch (e) {

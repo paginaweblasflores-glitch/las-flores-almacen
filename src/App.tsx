@@ -9,6 +9,7 @@ import Exits from "./components/Exits";
 import DateSearch from "./components/DateSearch";
 import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
+import { supabase } from "./supabaseClient";
 
 type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "fechas" | "buscar" | "exportar";
 
@@ -70,27 +71,38 @@ function PageContent({ page }: { page: Page }) {
 export default function App() {
   const [page, setPage] = useState<Page>("inicio");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem("isLoggedIn") === "true";
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      localStorage.setItem("isLoggedIn", "true");
-    } else {
-      localStorage.removeItem("isLoggedIn");
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
     }
-  }, [isAuthenticated]);
+
+    void supabase.auth.getSession().then(({ data }) => {
+      setIsAuthenticated(Boolean(data.session));
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session));
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase?.auth.signOut();
     setIsAuthenticated(false);
   };
 
-  // Show login if not authenticated
+  if (authLoading) return null;
+
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
   }

@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { LOGIN_EMAIL, supabase } from "../supabaseClient";
 
 interface LoginProps {
-  onLogin: (username: string, password: string) => void;
+  onLogin: () => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -10,7 +11,7 @@ export default function Login({ onLogin }: LoginProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!username || !password) {
@@ -20,12 +21,25 @@ export default function Login({ onLogin }: LoginProps) {
 
     setError("");
     setLoading(true);
-    
-    // Simulate a small delay for better UX
-    setTimeout(() => {
+
+    if (!supabase) {
+      setError("La autenticación no está configurada. Contacta al administrador.");
       setLoading(false);
-      onLogin(username, password);
-    }, 500);
+      return;
+    }
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: username === "almacen2026" ? LOGIN_EMAIL : `${username}@almacen.local`,
+      password,
+    });
+
+    setLoading(false);
+    if (authError) {
+      setError("Usuario o contraseña incorrectos.");
+      return;
+    }
+
+    onLogin();
   };
 
   return (
@@ -117,7 +131,7 @@ export default function Login({ onLogin }: LoginProps) {
           {/* Info Footer */}
           <div className="mt-6 pt-6 border-t border-slate-200 text-center">
             <p className="text-xs text-slate-500">
-              Demo: usa cualquier usuario y contraseña
+              Acceso protegido por Supabase
             </p>
           </div>
         </div>
