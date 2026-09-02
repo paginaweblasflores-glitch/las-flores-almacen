@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { LOGIN_EMAIL, supabase } from "../supabaseClient";
+import { LOGIN_EMAIL, LOGIN_USERNAME, supabase } from "../supabaseClient";
 
 interface LoginProps {
   onLogin: () => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(LOGIN_USERNAME);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,8 +28,14 @@ export default function Login({ onLogin }: LoginProps) {
       return;
     }
 
+    if (username.trim().toLowerCase() !== LOGIN_USERNAME.toLowerCase()) {
+      setError("Usuario o contraseña incorrectos.");
+      setLoading(false);
+      return;
+    }
+
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email: username === "almacen2026" ? LOGIN_EMAIL : `${username}@almacen.local`,
+      email: LOGIN_EMAIL,
       password,
     });
 

@@ -39,7 +39,7 @@ En Vercel, agrega las mismas variables en **Project Settings > Environment Varia
 1. Abre el **SQL Editor** de tu proyecto Supabase.
 2. Ejecuta el contenido de `supabase/schema.sql`.
 3. En **Authentication > Users**, crea el usuario de acceso:
-   - Usuario de la aplicacion: `almacen2026`
+   - Usuario de la aplicacion: `Almacen Las Flores`
    - Email de Supabase: `almacen2026@almacen.local`
    - Contraseña: configura una contraseña segura y confirmala automaticamente.
 4. Verifica que RLS este habilitado en `categories` y `movements`.
