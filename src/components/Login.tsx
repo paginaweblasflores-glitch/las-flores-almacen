@@ -38,7 +38,7 @@ export default function Login({ onLogin }: LoginProps) {
             <img
               src={floresImage}
               alt="Logo Sistema Almacén"
-              className="w-32 h-32 rounded-full object-cover shadow-lg"
+              className="w-32 h-32 object-contain shadow-lg"
             />
           </div>
 
