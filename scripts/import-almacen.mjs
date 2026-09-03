@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 // ---------------------------------------------------------------------------
 
 const DRY_RUN = process.argv.includes("--dry-run");
+const SQL_OUT = process.argv.includes("--sql");
 const XLSX_PATH =
   process.env.IMPORT_XLSX || "doc/SISTEMA DE INVENTARIO CORPORATIVO FINAL 1.xlsm";
 const AUTH_EMAIL = "almacen2026@almacen.local";
@@ -140,6 +141,31 @@ console.log(
   )}`
 );
 console.log("Ejemplo:", JSON.stringify(movements[0], null, 2));
+
+if (SQL_OUT) {
+  const q = (v) => (v == null ? "NULL" : `'${String(v).replace(/'/g, "''")}'`);
+  const n = (v) => Number(v || 0);
+  const cols =
+    "id, codigo, descripcion, cantidad, unidad_medida, costo, precio_venta, stock_minimo, valor, fecha, responsable, area, categoria, tipo, motivo";
+  const values = movements
+    .map(
+      (m) =>
+        `  (${q(m.id)}, ${q(m.codigo)}, ${q(m.descripcion)}, ${n(m.cantidad)}, ${q(m.unidad_medida)}, ` +
+        `${n(m.costo)}, ${n(m.precio_venta)}, ${n(m.stock_minimo)}, ${n(m.valor)}, ${q(m.fecha)}, ` +
+        `${q(m.responsable)}, ${q(m.area)}, ${q(m.categoria)}, ${q(m.tipo)}, ${q(m.motivo)})`
+    )
+    .join(",\n");
+  const sql =
+    `-- ==================================================================\n` +
+    `-- Importación del inventario desde el Excel de Rio\n` +
+    `-- ${entradas.length} entradas + ${salidas.length} salidas = ${movements.length} movimientos (${productos.size} productos)\n` +
+    `-- Ejecutar en el SQL Editor de Supabase. Idempotente: ON CONFLICT DO NOTHING.\n` +
+    `-- ==================================================================\n\n` +
+    `insert into public.movements\n  (${cols})\nvalues\n${values}\non conflict (id) do nothing;\n`;
+  fs.writeFileSync("supabase/import-inventario.sql", sql, "utf8");
+  console.log(`\nEscrito supabase/import-inventario.sql (${movements.length} filas).`);
+  process.exit(0);
+}
 
 if (DRY_RUN) {
   console.log("\n--dry-run: no se escribió nada en Supabase.");

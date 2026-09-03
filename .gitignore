@@ -17,6 +17,7 @@ logs/
 # Documentación y datos de trabajo — no forman parte del proyecto
 doc/
 src/xlsx/
+supabase/import-inventario.sql
 
 # Herramientas del andamiaje anterior (no se usan; el deploy es Vercel)
 .figma/
