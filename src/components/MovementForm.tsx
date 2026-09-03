@@ -705,27 +705,27 @@ export default function MovementForm() {
           <strong className="font-mono text-sm text-stone-800">S/ {totalMovimiento.toFixed(2)}</strong>
         </div>
 
-        {/* Stock mínimo (opcional) */}
-        <div className="flex flex-col gap-1 sm:max-w-[16rem]">
-          <label htmlFor="stockMinimo" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-            Stock mínimo <span className="text-stone-400 font-normal lowercase">(opcional — alerta de reorden)</span>
-          </label>
-          <input
+        {/* Stock mínimo · Fecha · Responsable · Área · Categoría */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+          <Field
+            label="Stock mínimo"
             id="stockMinimo"
-            type="number"
-            min="0"
-            value={form.stockMinimo}
-            onChange={(e) => {
-              setForm((f) => ({ ...f, stockMinimo: e.target.value }));
-              setError("");
-            }}
-            placeholder="0"
-            className="input font-mono"
-          />
-        </div>
+            action={<span className="text-[11px] text-stone-400">opcional — alerta de reorden</span>}
+          >
+            <input
+              id="stockMinimo"
+              type="number"
+              min="0"
+              value={form.stockMinimo}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, stockMinimo: e.target.value }));
+                setError("");
+              }}
+              placeholder="0"
+              className="input font-mono"
+            />
+          </Field>
 
-        {/* Row 4: Fecha & Responsable */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Fecha" id="fecha">
             <input
               id="fecha"
@@ -751,10 +751,7 @@ export default function MovementForm() {
               className="input"
             />
           </Field>
-        </div>
 
-        {/* Row 5: Área & Categoría */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           <div className="flex flex-col gap-1">
             <label htmlFor="area" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Área <span className="text-stone-400 font-normal lowercase">(elige o escribe otra)</span>
@@ -771,7 +768,7 @@ export default function MovementForm() {
             />
           </div>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 sm:col-span-2">
             <label htmlFor="categoria" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Categoría <span className="text-stone-400 font-normal lowercase">(elige o escribe otra)</span>
             </label>
