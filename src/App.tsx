@@ -124,7 +124,9 @@ export default function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <img src="/logo.png" alt="Las Flores" className="w-6 h-6 object-contain" />
+          <span className="flex-shrink-0 rounded-full border border-white/25 p-0.5">
+            <img src="/logo.png" alt="Las Flores" className="w-5 h-5 object-contain" />
+          </span>
           <span className="font-serif font-semibold text-sm tracking-tight">Sistema Almacén</span>
         </div>
 
@@ -145,7 +147,9 @@ export default function App() {
         >
           {/* Title */}
           <div className={`flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5 ${sidebarOpen ? "" : "sm:px-0 sm:justify-center"}`}>
-            <img src="/logo.png" alt="Las Flores" className="w-7 h-7 flex-shrink-0 object-contain" />
+            <span className="flex-shrink-0 rounded-full border border-white/25 p-1">
+              <img src="/logo.png" alt="Las Flores" className="w-6 h-6 object-contain" />
+            </span>
             <span className={`font-serif font-semibold text-[15px] tracking-tight whitespace-nowrap ${labelHidden}`}>Sistema Almacén</span>
             <button
               onClick={() => setMobileOpen(false)}
