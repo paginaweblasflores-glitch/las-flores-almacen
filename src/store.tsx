@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { Movement, InventoryItem } from "./types";
-import { DEFAULT_CATEGORIES } from "./types";
+import { DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "./types";
 import { supabase } from "./supabaseClient";
 import { useToast } from "./toast";
 
@@ -133,6 +133,7 @@ interface StoreCtx {
   movements: Movement[];
   inventory: InventoryItem[];
   categories: string[];
+  unidades: string[];
   nextCodigo: () => string;
   addCategory: (category: string) => { success: boolean; message?: string };
   addMovement: (m: MovementInput) => string | null;
@@ -226,6 +227,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
+
+  // Unidades de medida: las de por defecto + las que Rio ya haya escrito.
+  const unidades = Array.from(
+    new Set([
+      ...UNIDADES_MEDIDA,
+      ...movements
+        .map((m) => (m.unidadMedida || "").trim().toUpperCase())
+        .filter((u) => u !== ""),
+    ])
+  );
 
   // Siguiente código correlativo: máximo código numérico + 1.
   function nextCodigo(): string {
@@ -417,6 +428,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         movements,
         inventory,
         categories,
+        unidades,
         nextCodigo,
         addCategory,
         addMovement,

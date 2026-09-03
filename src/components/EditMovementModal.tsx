@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
-import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "../types";
+import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { Movement, MovementType } from "../types";
 import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
+import UnidadInput from "./UnidadInput";
 
 interface Props {
   movement: Movement | null;
@@ -190,15 +191,10 @@ export default function EditMovementModal({ movement, onClose }: Props) {
             {/* Unidad de medida */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad de medida</label>
-              <select
+              <UnidadInput
                 value={form.unidadMedida}
-                onChange={(e) => setForm({ ...form, unidadMedida: e.target.value })}
-                className="input"
-              >
-                {UNIDADES_MEDIDA.map((u) => (
-                  <option key={u}>{u}</option>
-                ))}
-              </select>
+                onChange={(v) => setForm({ ...form, unidadMedida: v })}
+              />
             </div>
 
             {/* Costo unitario */}
