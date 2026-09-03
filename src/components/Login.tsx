@@ -104,7 +104,7 @@ export default function Login({ onLogin }: LoginProps) {
                     setError("");
                   }}
                   disabled={loading}
-                  className="w-full appearance-none rounded-lg border border-line bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-stone-100"
+                  className="w-full appearance-none rounded-lg border border-line bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-stone-100"
                 >
                   <option value="">Selecciona tu usuario...</option>
                   <option value={LOGIN_USERNAME}>{LOGIN_USERNAME}</option>
@@ -139,7 +139,7 @@ export default function Login({ onLogin }: LoginProps) {
                   }}
                   placeholder="Ingresa tu contraseña"
                   disabled={loading}
-                  className="w-full rounded-lg border border-line bg-white px-4 py-3 pr-11 text-sm text-ink outline-none transition placeholder:text-stone-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-stone-100"
+                  className="w-full rounded-lg border border-line bg-white px-4 py-3 pr-11 text-base text-ink outline-none transition placeholder:text-stone-400 placeholder:tracking-normal [&:not(:placeholder-shown)]:tracking-[0.25em] focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-stone-100"
                 />
                 <button
                   type="button"
