@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
-import { AREAS, DEFAULT_CATEGORIES } from "../types";
+import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "../types";
 import type { Movement, MovementType } from "../types";
 import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
@@ -18,7 +18,9 @@ export default function EditMovementModal({ movement, onClose }: Props) {
     codigo: "",
     descripcion: "",
     cantidad: "",
-    valor: "",
+    unidadMedida: "UNID" as string,
+    costo: "",
+    precioVenta: "",
     fecha: "",
     responsable: "",
     area: AREAS[0] as string,
@@ -35,7 +37,9 @@ export default function EditMovementModal({ movement, onClose }: Props) {
         codigo: movement.codigo,
         descripcion: movement.descripcion,
         cantidad: movement.cantidad.toString(),
-        valor: movement.valor.toString(),
+        unidadMedida: movement.unidadMedida || "UNID",
+        costo: movement.costo ? movement.costo.toString() : "",
+        precioVenta: movement.precioVenta ? movement.precioVenta.toString() : "",
         fecha: movement.fecha,
         responsable: movement.responsable,
         area: movement.area,
@@ -73,8 +77,8 @@ export default function EditMovementModal({ movement, onClose }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.codigo || !form.descripcion || !form.cantidad || !form.valor || !form.fecha || !form.responsable) {
-      setError("Todos los campos son requeridos.");
+    if (!form.codigo || !form.descripcion || !form.cantidad || !form.costo || !form.fecha || !form.responsable) {
+      setError("Completa código, descripción, cantidad, costo, fecha y responsable.");
       return;
     }
 
@@ -84,9 +88,15 @@ export default function EditMovementModal({ movement, onClose }: Props) {
       return;
     }
 
-    const val = Number(form.valor);
-    if (isNaN(val) || val < 0) {
-      setError("El valor debe ser un número válido mayor o igual a 0.");
+    const costo = Number(form.costo);
+    if (isNaN(costo) || costo < 0) {
+      setError("El costo debe ser un número válido mayor o igual a 0.");
+      return;
+    }
+
+    const precioVenta = form.precioVenta ? Number(form.precioVenta) : costo;
+    if (isNaN(precioVenta) || precioVenta < 0) {
+      setError("El precio de venta debe ser un número válido mayor o igual a 0.");
       return;
     }
 
@@ -94,7 +104,9 @@ export default function EditMovementModal({ movement, onClose }: Props) {
       codigo: form.codigo.toUpperCase().trim(),
       descripcion: form.descripcion.trim(),
       cantidad: qty,
-      valor: val,
+      unidadMedida: form.unidadMedida,
+      costo,
+      precioVenta,
       fecha: form.fecha,
       responsable: form.responsable.trim(),
       area: form.area,
@@ -172,17 +184,44 @@ export default function EditMovementModal({ movement, onClose }: Props) {
               />
             </div>
 
-            {/* Valor */}
+            {/* Unidad de medida */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Valor Total (S/)</label>
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad de medida</label>
+              <select
+                value={form.unidadMedida}
+                onChange={(e) => setForm({ ...form, unidadMedida: e.target.value })}
+                className="input"
+              >
+                {UNIDADES_MEDIDA.map((u) => (
+                  <option key={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Costo unitario */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Costo unitario (S/)</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                value={form.valor}
-                onChange={(e) => setForm({ ...form, valor: e.target.value })}
+                value={form.costo}
+                onChange={(e) => setForm({ ...form, costo: e.target.value })}
                 className="input font-mono"
                 required
+              />
+            </div>
+
+            {/* Precio de venta */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Precio de venta (S/)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.precioVenta}
+                onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
+                className="input font-mono"
               />
             </div>
 

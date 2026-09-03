@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
-import { AREAS, DEFAULT_CATEGORIES } from "../types";
+import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA, MARGEN_PRECIO_VENTA } from "../types";
 import type { MovementType, InventoryItem } from "../types";
 import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
@@ -9,7 +9,9 @@ const empty = (defaultCat?: string) => ({
   codigo: "",
   descripcion: "",
   cantidad: "",
-  valor: "",
+  unidadMedida: "UNID" as string,
+  costo: "",
+  precioVenta: "",
   fecha: new Date().toISOString().split("T")[0],
   responsable: "",
   area: AREAS[0] as string,
@@ -19,12 +21,18 @@ const empty = (defaultCat?: string) => ({
   motivo: "",
 });
 
+function suggestPrecio(costo: string): string {
+  const n = Number(costo);
+  return n > 0 ? (n * MARGEN_PRECIO_VENTA).toFixed(2) : "";
+}
+
 export default function MovementForm() {
-  const { inventory, categories, addMovement } = useStore();
+  const { movements, inventory, categories, addMovement, nextCodigo } = useStore();
   const [form, setForm] = useState(() => empty(categories[0] || DEFAULT_CATEGORIES[0]));
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [isCustomValor, setIsCustomValor] = useState(false);
+  const [autoCodigo, setAutoCodigo] = useState(true);
+  const [precioTouched, setPrecioTouched] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Suggestions state
@@ -42,6 +50,13 @@ export default function MovementForm() {
       (form.descripcion.trim() && item.descripcion.toLowerCase() === form.descripcion.toLowerCase().trim())
   );
 
+  // Autonumeración del código para productos nuevos
+  useEffect(() => {
+    if (!autoCodigo) return;
+    setForm((f) => (f.codigo === "" ? { ...f, codigo: nextCodigo() } : f));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCodigo, movements.length]);
+
   // Close suggestion dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -56,20 +71,25 @@ export default function MovementForm() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  function selectProduct(item: InventoryItem) {
-    const qty = Number(form.cantidad) > 0 ? Number(form.cantidad) : 1;
-    const computedValor = (qty * item.valor).toFixed(2);
-
-    setForm((prev) => ({
+  function fillFromItem(prev: ReturnType<typeof empty>, item: InventoryItem) {
+    return {
       ...prev,
       codigo: item.codigo,
       descripcion: item.descripcion,
       area: item.area || prev.area,
       categoria: item.categoria || prev.categoria || categories[0] || DEFAULT_CATEGORIES[0],
+      unidadMedida: item.unidadMedida || prev.unidadMedida,
+      costo: item.costo ? item.costo.toFixed(2) : prev.costo,
+      precioVenta: item.precioVenta ? item.precioVenta.toFixed(2) : prev.precioVenta,
       responsable: prev.responsable || item.responsable || "",
-      valor: isCustomValor && prev.valor ? prev.valor : computedValor,
       imagen: item.imagen || prev.imagen || "",
-    }));
+    };
+  }
+
+  function selectProduct(item: InventoryItem) {
+    setAutoCodigo(false);
+    setPrecioTouched(true);
+    setForm((prev) => fillFromItem(prev, item));
     setShowCodeSuggestions(false);
     setShowDescSuggestions(false);
     setError("");
@@ -78,24 +98,14 @@ export default function MovementForm() {
 
   function handleCodigoChange(value: string) {
     const upperVal = value.toUpperCase();
+    setAutoCodigo(false);
     setError("");
     setSuccess("");
 
-    // Look for exact match immediately
     const found = inventory.find((i) => i.codigo.toUpperCase() === upperVal.trim());
     if (found) {
-      const qty = Number(form.cantidad) > 0 ? Number(form.cantidad) : 1;
-      const computedValor = (qty * found.valor).toFixed(2);
-      setForm((prev) => ({
-        ...prev,
-        codigo: upperVal,
-        descripcion: found.descripcion,
-        area: found.area || prev.area,
-        categoria: found.categoria || prev.categoria || categories[0] || DEFAULT_CATEGORIES[0],
-        responsable: prev.responsable || found.responsable || "",
-        valor: isCustomValor && prev.valor ? prev.valor : computedValor,
-        imagen: found.imagen || prev.imagen || "",
-      }));
+      setPrecioTouched(true);
+      setForm((prev) => ({ ...fillFromItem(prev, found), codigo: upperVal }));
     } else {
       setForm((prev) => ({ ...prev, codigo: upperVal }));
     }
@@ -106,21 +116,11 @@ export default function MovementForm() {
     setError("");
     setSuccess("");
 
-    // Look for exact match
     const found = inventory.find((i) => i.descripcion.toLowerCase() === value.toLowerCase().trim());
     if (found) {
-      const qty = Number(form.cantidad) > 0 ? Number(form.cantidad) : 1;
-      const computedValor = (qty * found.valor).toFixed(2);
-      setForm((prev) => ({
-        ...prev,
-        codigo: found.codigo,
-        descripcion: value,
-        area: found.area || prev.area,
-        categoria: found.categoria || prev.categoria || categories[0] || DEFAULT_CATEGORIES[0],
-        responsable: prev.responsable || found.responsable || "",
-        valor: isCustomValor && prev.valor ? prev.valor : computedValor,
-        imagen: found.imagen || prev.imagen || "",
-      }));
+      setAutoCodigo(false);
+      setPrecioTouched(true);
+      setForm((prev) => ({ ...fillFromItem(prev, found), descripcion: value }));
     } else {
       setForm((prev) => ({ ...prev, descripcion: value }));
     }
@@ -128,34 +128,31 @@ export default function MovementForm() {
   }
 
   function handleCantidadChange(value: string) {
-    const qty = Number(value);
-    setForm((prev) => {
-      let newValor = prev.valor;
-      if (matchedItem && !isCustomValor && qty > 0) {
-        newValor = (qty * matchedItem.valor).toFixed(2);
-      }
-      return { ...prev, cantidad: value, valor: newValor };
-    });
+    setForm((prev) => ({ ...prev, cantidad: value }));
     setError("");
     setSuccess("");
   }
 
-  function handleValorChange(value: string) {
-    setIsCustomValor(true);
-    setForm((prev) => ({ ...prev, valor: value }));
+  function handleCostoChange(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      costo: value,
+      precioVenta: precioTouched ? prev.precioVenta : suggestPrecio(value),
+    }));
+    setError("");
+    setSuccess("");
+  }
+
+  function handlePrecioVentaChange(value: string) {
+    setPrecioTouched(true);
+    setForm((prev) => ({ ...prev, precioVenta: value }));
     setError("");
     setSuccess("");
   }
 
   function handleSetMaxStock() {
     if (matchedItem && matchedItem.cantidadDisponible > 0) {
-      const maxQty = matchedItem.cantidadDisponible;
-      const computedValor = (maxQty * matchedItem.valor).toFixed(2);
-      setForm((prev) => ({
-        ...prev,
-        cantidad: maxQty.toString(),
-        valor: isCustomValor && prev.valor ? prev.valor : computedValor,
-      }));
+      setForm((prev) => ({ ...prev, cantidad: matchedItem.cantidadDisponible.toString() }));
       setError("");
     }
   }
@@ -195,11 +192,13 @@ export default function MovementForm() {
       codigo: "",
       descripcion: "",
       cantidad: "",
-      valor: "",
+      costo: "",
+      precioVenta: "",
       imagen: "",
       motivo: "",
     }));
-    setIsCustomValor(false);
+    setAutoCodigo(true);
+    setPrecioTouched(false);
     setError("");
     setSuccess("");
     if (fileInputRef.current) {
@@ -207,10 +206,19 @@ export default function MovementForm() {
     }
   }
 
+  function resetForm() {
+    setForm(empty(categories[0] || DEFAULT_CATEGORIES[0]));
+    setAutoCodigo(true);
+    setPrecioTouched(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.codigo || !form.descripcion || !form.cantidad || !form.valor || !form.fecha || !form.responsable) {
-      setError("Todos los campos son requeridos.");
+    if (!form.codigo || !form.descripcion || !form.cantidad || !form.costo || !form.fecha || !form.responsable) {
+      setError("Completa código, descripción, cantidad, costo, fecha y responsable.");
       return;
     }
 
@@ -220,9 +228,15 @@ export default function MovementForm() {
       return;
     }
 
-    const val = Number(form.valor);
-    if (isNaN(val) || val < 0) {
-      setError("El valor debe ser un número válido mayor o igual a 0.");
+    const costo = Number(form.costo);
+    if (isNaN(costo) || costo < 0) {
+      setError("El costo debe ser un número válido mayor o igual a 0.");
+      return;
+    }
+
+    const precioVenta = form.precioVenta ? Number(form.precioVenta) : costo;
+    if (isNaN(precioVenta) || precioVenta < 0) {
+      setError("El precio de venta debe ser un número válido mayor o igual a 0.");
       return;
     }
 
@@ -235,7 +249,9 @@ export default function MovementForm() {
       codigo: form.codigo.toUpperCase().trim(),
       descripcion: form.descripcion.trim(),
       cantidad: qty,
-      valor: val,
+      unidadMedida: form.unidadMedida,
+      costo,
+      precioVenta,
       fecha: form.fecha,
       responsable: form.responsable.trim(),
       area: form.area,
@@ -249,11 +265,7 @@ export default function MovementForm() {
       setError(err);
     } else {
       setSuccess(`${form.tipo} de "${form.descripcion}" registrada correctamente.`);
-      setForm(empty(categories[0] || DEFAULT_CATEGORIES[0]));
-      setIsCustomValor(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      resetForm();
     }
   }
 
@@ -281,6 +293,8 @@ export default function MovementForm() {
     form.tipo === "Salida" &&
     matchedItem &&
     matchedItem.cantidadDisponible <= 0;
+
+  const totalMovimiento = (Number(form.costo) || 0) * (Number(form.cantidad) || 0);
 
   return (
     <div className="bg-white border border-stone-200 rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs">
@@ -346,12 +360,16 @@ export default function MovementForm() {
                         : "text-leaf-700 font-bold"
                     }
                   >
-                    {matchedItem.cantidadDisponible} un.
+                    {matchedItem.cantidadDisponible} {matchedItem.unidadMedida || "un."}
                   </strong>
                 </span>
                 <span className="text-stone-300">•</span>
                 <span>
-                  Precio ref: <strong className="text-stone-800">S/ {matchedItem.valor.toFixed(2)} c/u</strong>
+                  Costo ref: <strong className="text-stone-800">S/ {matchedItem.costo.toFixed(2)}</strong>
+                </span>
+                <span className="text-stone-300">•</span>
+                <span>
+                  Venta: <strong className="text-leaf-700">S/ {matchedItem.precioVenta.toFixed(2)}</strong>
                 </span>
               </div>
             </div>
@@ -395,20 +413,21 @@ export default function MovementForm() {
         {/* Fields Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Row 1: Código & Descripción */}
-          {/* Código with Autocomplete */}
           <div ref={codeContainerRef} className="relative flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <label htmlFor="codigo" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                 Código
               </label>
-              {matchedItem && (
+              {matchedItem ? (
                 <span className="text-[11px] text-leaf-600 font-medium flex items-center gap-0.5">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Existente
                 </span>
-              )}
+              ) : autoCodigo ? (
+                <span className="text-[11px] text-stone-400 font-medium">correlativo automático</span>
+              ) : null}
             </div>
             <div className="relative">
               <input
@@ -416,7 +435,7 @@ export default function MovementForm() {
                 value={form.codigo}
                 onChange={(e) => handleCodigoChange(e.target.value)}
                 onFocus={() => setShowCodeSuggestions(true)}
-                placeholder="Ej. A001"
+                placeholder="Ej. 100"
                 className={`input font-mono uppercase pr-8 ${matchedItem ? "border-brand-400 bg-brand-50/20" : ""}`}
                 autoComplete="off"
               />
@@ -424,6 +443,7 @@ export default function MovementForm() {
                 <button
                   type="button"
                   onClick={() => {
+                    setAutoCodigo(false);
                     setForm((f) => ({ ...f, codigo: "" }));
                     setShowCodeSuggestions(true);
                   }}
@@ -436,7 +456,6 @@ export default function MovementForm() {
               )}
             </div>
 
-            {/* Code Suggestions Dropdown */}
             {showCodeSuggestions && codeMatches.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-stone-200 rounded-lg shadow-lg max-h-56 overflow-y-auto divide-y divide-stone-100">
                 <div className="px-3 py-1.5 bg-stone-50 text-[11px] font-semibold text-stone-400 uppercase tracking-wider flex items-center justify-between">
@@ -475,7 +494,7 @@ export default function MovementForm() {
                       >
                         {item.cantidadDisponible} un.
                       </span>
-                      <span className="text-[10px] text-stone-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
+                      <span className="text-[10px] text-stone-400 font-mono">S/ {item.costo.toFixed(2)} c/u</span>
                     </div>
                   </button>
                 ))}
@@ -483,7 +502,6 @@ export default function MovementForm() {
             )}
           </div>
 
-          {/* Descripción with Autocomplete */}
           <div ref={descContainerRef} className="relative flex flex-col gap-1">
             <label htmlFor="descripcion" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Descripción
@@ -514,7 +532,6 @@ export default function MovementForm() {
               )}
             </div>
 
-            {/* Desc Suggestions Dropdown */}
             {showDescSuggestions && descMatches.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-stone-200 rounded-lg shadow-lg max-h-56 overflow-y-auto divide-y divide-stone-100">
                 <div className="px-3 py-1.5 bg-stone-50 text-[11px] font-semibold text-stone-400 uppercase tracking-wider flex items-center justify-between">
@@ -558,7 +575,7 @@ export default function MovementForm() {
                       >
                         {item.cantidadDisponible} un.
                       </span>
-                      <span className="text-[10px] text-stone-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
+                      <span className="text-[10px] text-stone-400 font-mono">S/ {item.costo.toFixed(2)} c/u</span>
                     </div>
                   </button>
                 ))}
@@ -566,8 +583,7 @@ export default function MovementForm() {
             )}
           </div>
 
-          {/* Row 2: Cantidad & Valor */}
-          {/* Cantidad */}
+          {/* Row 2: Cantidad & Unidad de medida */}
           <Field
             label="Cantidad"
             id="cantidad"
@@ -603,50 +619,92 @@ export default function MovementForm() {
             </div>
           </Field>
 
-          {/* Valor */}
+          <div className="flex flex-col gap-1">
+            <label htmlFor="unidadMedida" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Unidad de medida
+            </label>
+            <select
+              id="unidadMedida"
+              value={form.unidadMedida}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, unidadMedida: e.target.value }));
+                setError("");
+              }}
+              className="input"
+            >
+              {UNIDADES_MEDIDA.map((u) => (
+                <option key={u}>{u}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Row 3: Costo & Precio de venta */}
           <Field
-            label="Valor Total (S/)"
-            id="valor"
+            label="Costo unitario (S/)"
+            id="costo"
             action={
               matchedItem && (
-                <span className="text-[11px] text-stone-400">
-                  Ref: S/ {matchedItem.valor.toFixed(2)} c/u
-                </span>
+                <span className="text-[11px] text-stone-400">Ref: S/ {matchedItem.costo.toFixed(2)}</span>
               )
+            }
+          >
+            <input
+              id="costo"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.costo}
+              onChange={(e) => handleCostoChange(e.target.value)}
+              placeholder="0.00"
+              className="input font-mono"
+            />
+          </Field>
+
+          <Field
+            label="Precio de venta (S/)"
+            id="precioVenta"
+            action={
+              !precioTouched && form.precioVenta ? (
+                <span className="text-[11px] text-stone-400">sugerido</span>
+              ) : null
             }
           >
             <div className="relative">
               <input
-                id="valor"
+                id="precioVenta"
                 type="number"
                 min="0"
                 step="0.01"
-                value={form.valor}
-                onChange={(e) => handleValorChange(e.target.value)}
+                value={form.precioVenta}
+                onChange={(e) => handlePrecioVentaChange(e.target.value)}
                 placeholder="0.00"
-                className="input font-mono"
+                className={`input font-mono ${!precioTouched && form.precioVenta ? "text-stone-500" : ""}`}
               />
-              {matchedItem && Number(form.cantidad) > 0 && (
+              {precioTouched && form.costo && (
                 <button
                   type="button"
                   onClick={() => {
-                    setIsCustomValor(false);
-                    const qty = Number(form.cantidad);
-                    setForm((prev) => ({
-                      ...prev,
-                      valor: (qty * matchedItem.valor).toFixed(2),
-                    }));
+                    setPrecioTouched(false);
+                    setForm((prev) => ({ ...prev, precioVenta: suggestPrecio(prev.costo) }));
                   }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-brand-600 hover:text-brand-800 bg-brand-50 px-1.5 py-0.5 rounded font-medium cursor-pointer"
-                  title="Recalcular según precio unitario de referencia"
+                  title="Volver al precio sugerido por margen"
                 >
-                  Auto
+                  Sugerido
                 </button>
               )}
             </div>
           </Field>
+        </div>
 
-          {/* Row 3: Fecha & Responsable */}
+        {/* Total del movimiento */}
+        <div className="flex items-center justify-end gap-2 text-xs text-stone-500 -mt-1">
+          <span>Total del movimiento ({form.cantidad || 0} × S/ {Number(form.costo || 0).toFixed(2)}):</span>
+          <strong className="font-mono text-sm text-stone-800">S/ {totalMovimiento.toFixed(2)}</strong>
+        </div>
+
+        {/* Row 4: Fecha & Responsable */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Fecha" id="fecha">
             <input
               id="fecha"
@@ -674,9 +732,8 @@ export default function MovementForm() {
           </Field>
         </div>
 
-        {/* Row 4: Área, Categoría & Imagen de Producto */}
+        {/* Row 5: Área & Categoría */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-          {/* Área */}
           <div className="flex flex-col gap-1">
             <label htmlFor="area" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Área
@@ -696,7 +753,6 @@ export default function MovementForm() {
             </select>
           </div>
 
-          {/* Categoría */}
           <div className="flex flex-col gap-1">
             <label htmlFor="categoria" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Categoría
@@ -786,14 +842,13 @@ export default function MovementForm() {
               <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <span>{isUploadingImage ? "Procesando imagen..." : "Subir foto / imagen del producto"}</span>
+              <span>{isUploadingImage ? "Subiendo imagen..." : "Subir foto / imagen del producto"}</span>
             </button>
           )}
         </div>
 
         {/* BOTTOM SECTION: Buttons & Actions */}
         <div className="border-t border-stone-100 pt-4 flex flex-col gap-3 mt-1">
-          {/* Tipo de movimiento Selector */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
               Tipo de movimiento
@@ -854,7 +909,6 @@ export default function MovementForm() {
             </div>
           )}
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={Boolean(isZeroStock || isExcessStock)}

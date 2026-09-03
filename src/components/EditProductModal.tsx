@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
-import { AREAS, DEFAULT_CATEGORIES } from "../types";
+import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "../types";
 import type { InventoryItem } from "../types";
 import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
@@ -18,6 +18,9 @@ export default function EditProductModal({ product, onClose }: Props) {
   const [descripcion, setDescripcion] = useState("");
   const [area, setArea] = useState<string>(AREAS[0]);
   const [categoria, setCategoria] = useState<string>(categories[0] || DEFAULT_CATEGORIES[0]);
+  const [unidadMedida, setUnidadMedida] = useState<string>("UNID");
+  const [costo, setCosto] = useState("");
+  const [precioVenta, setPrecioVenta] = useState("");
   const [imagen, setImagen] = useState("");
   const [error, setError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -28,6 +31,9 @@ export default function EditProductModal({ product, onClose }: Props) {
       setDescripcion(product.descripcion);
       setArea(product.area || AREAS[0]);
       setCategoria(product.categoria || categories[0] || DEFAULT_CATEGORIES[0]);
+      setUnidadMedida(product.unidadMedida || "UNID");
+      setCosto(product.costo ? product.costo.toString() : "");
+      setPrecioVenta(product.precioVenta ? product.precioVenta.toString() : "");
       setImagen(product.imagen || "");
       setError("");
     }
@@ -69,6 +75,9 @@ export default function EditProductModal({ product, onClose }: Props) {
       descripcion: descripcion.trim(),
       area,
       categoria,
+      unidadMedida,
+      costo: costo === "" ? undefined : Number(costo),
+      precioVenta: precioVenta === "" ? undefined : Number(precioVenta),
       imagen,
     });
 
@@ -121,6 +130,46 @@ export default function EditProductModal({ product, onClose }: Props) {
               className="input"
               required
             />
+          </div>
+
+          {/* Unidad, Costo y Precio de venta */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad de medida</label>
+              <select
+                value={unidadMedida}
+                onChange={(e) => setUnidadMedida(e.target.value)}
+                className="input"
+              >
+                {UNIDADES_MEDIDA.map((u) => (
+                  <option key={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Costo unit. (S/)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={costo}
+                onChange={(e) => setCosto(e.target.value)}
+                className="input font-mono"
+                placeholder="0.00"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">P. venta (S/)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={precioVenta}
+                onChange={(e) => setPrecioVenta(e.target.value)}
+                className="input font-mono"
+                placeholder="0.00"
+              />
+            </div>
           </div>
 
           {/* Área y Categoría */}
