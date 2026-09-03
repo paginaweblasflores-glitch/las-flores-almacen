@@ -113,6 +113,38 @@ body {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Impresión / Descargar PDF (módulo Inicio)                         */
+/* ------------------------------------------------------------------ */
+.print-only { display: none; }
+
+@media print {
+  @page { margin: 1.4cm; }
+
+  aside,
+  .no-print { display: none !important; }
+
+  .print-only { display: block !important; }
+
+  html, body, #root {
+    height: auto !important;
+    background: #fff !important;
+  }
+  #root > div { display: block !important; }
+  main { overflow: visible !important; }
+  main > div { max-width: none !important; padding: 0 !important; }
+
+  .report-section { break-inside: avoid; }
+
+  /* Recharts necesita un ancho fijo al imprimir */
+  .recharts-responsive-container { width: 100% !important; min-width: 640px; }
+
+  *, *::before, *::after {
+    box-shadow: none !important;
+    transition: none !important;
+  }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #d6cfc6 transparent;
