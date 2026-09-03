@@ -77,7 +77,7 @@ export const AVISOS_VOLUMEN: {
   mensaje: string;
 }[] = [
   {
-    limite: 300,
+    limite: 10000,
     nivel: "info",
     titulo: "El almacén ya tiene muchos movimientos",
     mensaje:
