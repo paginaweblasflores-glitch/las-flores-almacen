@@ -25,7 +25,7 @@ pnpm run preview  # sirve la compilación de dist/
 - `index.html` — shell HTML de Vite con `#root`
 - `site.config.json` — título, descripción e idioma del sitio (los inyecta un plugin de `vite.config.ts`)
 - `supabase/schema.sql` — tablas, índices, políticas RLS y categorías iniciales
-- `scripts/import-almacen.mjs` — importador puntual del inventario desde `src/xlsx/almacen.xlsx`
+- `scripts/import-almacen.mjs` — importador puntual del inventario; lee `doc/almacen.xlsx` (no versionado) o la ruta de `IMPORT_XLSX`
 - `vite.config.ts` — configuración de Vite (React, Tailwind v4, alias `@` → `src`)
 - `.mise.toml` — versiones de Node.js y pnpm
 

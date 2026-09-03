@@ -14,8 +14,9 @@ logs/
 .claude-replay.*
 .tmp-*
 
-# Documentación de trabajo interna — no forma parte del proyecto
+# Documentación y datos de trabajo — no forman parte del proyecto
 doc/
+src/xlsx/
 
 # Herramientas del andamiaje anterior (no se usan; el deploy es Vercel)
 .figma/

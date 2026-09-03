@@ -24,7 +24,13 @@ const { error: authError } = await supabase.auth.signInWithPassword({
 });
 if (authError) throw new Error(`No se pudo autenticar: ${authError.message}`);
 
-const workbook = XLSX.readFile("src/xlsx/almacen.xlsx");
+// El archivo con los datos NO se versiona. Por defecto se lee de doc/almacen.xlsx;
+// se puede sobreescribir con la variable de entorno IMPORT_XLSX.
+const xlsxPath = process.env.IMPORT_XLSX || "doc/almacen.xlsx";
+if (!fs.existsSync(xlsxPath)) {
+  throw new Error(`No se encontró ${xlsxPath}. Copia el archivo o define IMPORT_XLSX.`);
+}
+const workbook = XLSX.readFile(xlsxPath);
 const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: null });
 const importedAt = new Date().toISOString().slice(0, 10);
 const movements = [];
