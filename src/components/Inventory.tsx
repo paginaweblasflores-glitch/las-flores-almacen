@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import type { InventoryItem } from "../types";
 import EditProductModal from "./EditProductModal";
+import Pager from "./Pager";
+
+const PAGE_SIZE = 25;
 
 export default function Inventory() {
   const { inventory, categories, deleteProduct, clearAll } = useStore();
@@ -11,6 +14,11 @@ export default function Inventory() {
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
   const [dangerOpen, setDangerOpen] = useState(false);
   const [clearConfirmText, setClearConfirmText] = useState("");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedCategory]);
 
   const filtered = inventory.filter((i) => {
     const matchSearch =
@@ -25,6 +33,8 @@ export default function Inventory() {
 
     return matchSearch && matchCategory;
   });
+
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function handleDeleteProduct(codigo: string) {
     deleteProduct(codigo);
@@ -79,6 +89,7 @@ export default function Inventory() {
                 <th className="text-left px-4 py-3">Producto</th>
                 <th className="text-left px-4 py-3">Categoría</th>
                 <th className="text-right px-4 py-3">Disponible</th>
+                <th className="text-right px-4 py-3">Mín.</th>
                 <th className="text-left px-4 py-3">Unidad</th>
                 <th className="text-right px-4 py-3">Costo unit.</th>
                 <th className="text-right px-4 py-3">P. venta</th>
@@ -88,7 +99,7 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-50">
-              {filtered.map((item) => (
+              {pageItems.map((item) => (
                 <tr key={item.codigo} className="hover:bg-stone-50/60 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs font-medium text-brand-700 bg-brand-50/40">{item.codigo}</td>
                   <td className="px-4 py-3 text-stone-800 font-medium">
@@ -113,15 +124,16 @@ export default function Inventory() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`font-mono font-semibold ${item.cantidadDisponible <= 0 ? "text-brand-600 font-bold" : item.cantidadDisponible <= 5 ? "text-amber-600" : "text-stone-800"}`}>
+                    <span className={`font-mono font-semibold ${item.cantidadDisponible <= 0 ? "text-brand-600 font-bold" : (item.stockMinimo > 0 && item.cantidadDisponible <= item.stockMinimo) ? "text-amber-600" : "text-stone-800"}`}>
                       {item.cantidadDisponible}
                     </span>
                     {item.cantidadDisponible <= 0 ? (
                       <span className="ml-2 text-xs text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full">agotado</span>
-                    ) : item.cantidadDisponible <= 5 ? (
-                      <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">bajo</span>
+                    ) : item.stockMinimo > 0 && item.cantidadDisponible <= item.stockMinimo ? (
+                      <span className="ml-2 text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">reponer</span>
                     ) : null}
                   </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-stone-400">{item.stockMinimo > 0 ? item.stockMinimo : "—"}</td>
                   <td className="px-4 py-3 text-stone-500 text-xs">{item.unidadMedida || "—"}</td>
                   <td className="px-4 py-3 text-right font-mono text-stone-600">S/ {item.costo.toFixed(2)}</td>
                   <td className="px-4 py-3 text-right font-mono text-stone-800">S/ {item.precioVenta.toFixed(2)}</td>
@@ -173,11 +185,12 @@ export default function Inventory() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-stone-400 text-sm">No se encontraron productos.</td></tr>
+                <tr><td colSpan={11} className="px-4 py-8 text-center text-stone-400 text-sm">No se encontraron productos.</td></tr>
               )}
             </tbody>
           </table>
         </div>
+        <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
       </div>
 
       {/* Zona de peligro — vaciar almacén */}

@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import type { Movement } from "../types";
 import EditMovementModal from "./EditMovementModal";
+import Pager from "./Pager";
+
+const PAGE_SIZE = 25;
 
 interface Props {
   movements: Movement[];
@@ -14,6 +17,13 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
   const { deleteMovement } = useStore();
   const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [movements.length]);
+
+  const pageItems = movements.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function handleDelete(id: string) {
     deleteMovement(id);
@@ -47,7 +57,7 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-50">
-              {movements.map((m) => (
+              {pageItems.map((m) => (
                 <tr key={m.id} className="hover:bg-stone-50/60 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-brand-700">{m.codigo}</td>
                   <td className="px-4 py-3 text-stone-800 font-medium">
@@ -132,6 +142,7 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
             </tbody>
           </table>
         </div>
+        <Pager page={page} pageSize={PAGE_SIZE} total={movements.length} onPage={setPage} />
       </div>
 
       {/* Edit Movement Modal */}

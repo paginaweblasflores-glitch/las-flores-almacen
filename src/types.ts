@@ -74,6 +74,7 @@ export interface Movement {
   unidadMedida?: string;
   costo: number;        // costo unitario
   precioVenta: number;  // precio de venta unitario
+  stockMinimo: number;  // punto de reorden del producto
   valor: number;        // valor total del movimiento (cantidad × costo)
   fecha: string;
   responsable: string;
@@ -91,6 +92,7 @@ export interface InventoryItem {
   unidadMedida?: string;
   costo: number;        // costo unitario más reciente
   precioVenta: number;  // precio de venta unitario más reciente
+  stockMinimo: number;  // punto de reorden
   valor: number;        // alias de costo (compatibilidad)
   fechaActualizacion: string;
   responsable: string;

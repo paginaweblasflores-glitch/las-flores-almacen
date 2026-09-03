@@ -21,6 +21,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
     unidadMedida: "UNID" as string,
     costo: "",
     precioVenta: "",
+    stockMinimo: "",
     fecha: "",
     responsable: "",
     area: AREAS[0] as string,
@@ -40,6 +41,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
         unidadMedida: movement.unidadMedida || "UNID",
         costo: movement.costo ? movement.costo.toString() : "",
         precioVenta: movement.precioVenta ? movement.precioVenta.toString() : "",
+        stockMinimo: movement.stockMinimo ? movement.stockMinimo.toString() : "",
         fecha: movement.fecha,
         responsable: movement.responsable,
         area: movement.area,
@@ -107,6 +109,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
       unidadMedida: form.unidadMedida,
       costo,
       precioVenta,
+      stockMinimo: form.stockMinimo === "" ? undefined : Number(form.stockMinimo),
       fecha: form.fecha,
       responsable: form.responsable.trim(),
       area: form.area,
@@ -222,6 +225,19 @@ export default function EditMovementModal({ movement, onClose }: Props) {
                 value={form.precioVenta}
                 onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
                 className="input font-mono"
+              />
+            </div>
+
+            {/* Stock mínimo */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Stock mínimo</label>
+              <input
+                type="number"
+                min="0"
+                value={form.stockMinimo}
+                onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })}
+                className="input font-mono"
+                placeholder="0"
               />
             </div>
 

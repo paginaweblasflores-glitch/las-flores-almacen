@@ -21,6 +21,7 @@ export default function EditProductModal({ product, onClose }: Props) {
   const [unidadMedida, setUnidadMedida] = useState<string>("UNID");
   const [costo, setCosto] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
+  const [stockMinimo, setStockMinimo] = useState("");
   const [imagen, setImagen] = useState("");
   const [error, setError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -34,6 +35,7 @@ export default function EditProductModal({ product, onClose }: Props) {
       setUnidadMedida(product.unidadMedida || "UNID");
       setCosto(product.costo ? product.costo.toString() : "");
       setPrecioVenta(product.precioVenta ? product.precioVenta.toString() : "");
+      setStockMinimo(product.stockMinimo ? product.stockMinimo.toString() : "");
       setImagen(product.imagen || "");
       setError("");
     }
@@ -78,6 +80,7 @@ export default function EditProductModal({ product, onClose }: Props) {
       unidadMedida,
       costo: costo === "" ? undefined : Number(costo),
       precioVenta: precioVenta === "" ? undefined : Number(precioVenta),
+      stockMinimo: stockMinimo === "" ? undefined : Number(stockMinimo),
       imagen,
     });
 
@@ -132,10 +135,10 @@ export default function EditProductModal({ product, onClose }: Props) {
             />
           </div>
 
-          {/* Unidad, Costo y Precio de venta */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Unidad, Costo, Precio de venta y Stock mínimo */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad de medida</label>
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad</label>
               <select
                 value={unidadMedida}
                 onChange={(e) => setUnidadMedida(e.target.value)}
@@ -147,7 +150,7 @@ export default function EditProductModal({ product, onClose }: Props) {
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Costo unit. (S/)</label>
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Costo (S/)</label>
               <input
                 type="number"
                 min="0"
@@ -168,6 +171,18 @@ export default function EditProductModal({ product, onClose }: Props) {
                 onChange={(e) => setPrecioVenta(e.target.value)}
                 className="input font-mono"
                 placeholder="0.00"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Stock mín.</label>
+              <input
+                type="number"
+                min="0"
+                value={stockMinimo}
+                onChange={(e) => setStockMinimo(e.target.value)}
+                className="input font-mono"
+                placeholder="0"
+                title="Punto de reorden: alerta cuando el disponible baje de este valor"
               />
             </div>
           </div>

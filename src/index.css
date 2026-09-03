@@ -96,6 +96,23 @@ body {
   color: var(--color-ink);
 }
 
+/* Foco visible para navegación con teclado */
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.input:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #d6cfc6 transparent;

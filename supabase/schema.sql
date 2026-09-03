@@ -12,6 +12,7 @@ create table if not exists public.movements (
   unidad_medida text,
   costo numeric not null default 0,
   precio_venta numeric not null default 0,
+  stock_minimo numeric not null default 0,
   valor numeric not null default 0,
   fecha date not null,
   responsable text not null,

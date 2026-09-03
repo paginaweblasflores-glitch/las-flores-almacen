@@ -12,6 +12,7 @@ const empty = (defaultCat?: string) => ({
   unidadMedida: "UNID" as string,
   costo: "",
   precioVenta: "",
+  stockMinimo: "",
   fecha: new Date().toISOString().split("T")[0],
   responsable: "",
   area: AREAS[0] as string,
@@ -81,6 +82,7 @@ export default function MovementForm() {
       unidadMedida: item.unidadMedida || prev.unidadMedida,
       costo: item.costo ? item.costo.toFixed(2) : prev.costo,
       precioVenta: item.precioVenta ? item.precioVenta.toFixed(2) : prev.precioVenta,
+      stockMinimo: item.stockMinimo ? String(item.stockMinimo) : prev.stockMinimo,
       responsable: prev.responsable || item.responsable || "",
       imagen: item.imagen || prev.imagen || "",
     };
@@ -194,6 +196,7 @@ export default function MovementForm() {
       cantidad: "",
       costo: "",
       precioVenta: "",
+      stockMinimo: "",
       imagen: "",
       motivo: "",
     }));
@@ -252,6 +255,7 @@ export default function MovementForm() {
       unidadMedida: form.unidadMedida,
       costo,
       precioVenta,
+      stockMinimo: form.stockMinimo === "" ? undefined : Number(form.stockMinimo),
       fecha: form.fecha,
       responsable: form.responsable.trim(),
       area: form.area,
@@ -701,6 +705,25 @@ export default function MovementForm() {
         <div className="flex items-center justify-end gap-2 text-xs text-stone-500 -mt-1">
           <span>Total del movimiento ({form.cantidad || 0} × S/ {Number(form.costo || 0).toFixed(2)}):</span>
           <strong className="font-mono text-sm text-stone-800">S/ {totalMovimiento.toFixed(2)}</strong>
+        </div>
+
+        {/* Stock mínimo (opcional) */}
+        <div className="flex flex-col gap-1 sm:max-w-[16rem]">
+          <label htmlFor="stockMinimo" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+            Stock mínimo <span className="text-stone-400 font-normal lowercase">(opcional — alerta de reorden)</span>
+          </label>
+          <input
+            id="stockMinimo"
+            type="number"
+            min="0"
+            value={form.stockMinimo}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, stockMinimo: e.target.value }));
+              setError("");
+            }}
+            placeholder="0"
+            className="input font-mono"
+          />
         </div>
 
         {/* Row 4: Fecha & Responsable */}

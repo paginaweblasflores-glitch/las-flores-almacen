@@ -29,6 +29,7 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
         unidadMedida: m.unidadMedida,
         costo,
         precioVenta,
+        stockMinimo: m.stockMinimo ?? 0,
         valor: costo,
         fechaActualizacion: m.fecha,
         responsable: m.responsable,
@@ -45,6 +46,9 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
       existing.valor = costo;
       existing.area = m.area;
       existing.descripcion = m.descripcion;
+      if (m.stockMinimo != null && m.stockMinimo > 0) {
+        existing.stockMinimo = m.stockMinimo;
+      }
       if (m.unidadMedida) {
         existing.unidadMedida = m.unidadMedida;
       }
@@ -71,6 +75,7 @@ function movementFromRow(row: Record<string, unknown>): Movement {
     unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
     costo,
     precioVenta: row.precio_venta != null ? Number(row.precio_venta) : costo,
+    stockMinimo: row.stock_minimo != null ? Number(row.stock_minimo) : 0,
     valor,
     fecha: String(row.fecha),
     responsable: String(row.responsable),
@@ -91,6 +96,7 @@ function movementToRow(movement: Movement) {
     unidad_medida: movement.unidadMedida ?? null,
     costo: movement.costo ?? 0,
     precio_venta: movement.precioVenta ?? 0,
+    stock_minimo: movement.stockMinimo ?? 0,
     valor: movement.valor,
     fecha: movement.fecha,
     responsable: movement.responsable,
@@ -110,14 +116,16 @@ interface ProductPatch {
   unidadMedida?: string;
   costo?: number;
   precioVenta?: number;
+  stockMinimo?: number;
   imagen?: string;
 }
 
-// Al registrar/editar un movimiento, costo y precioVenta son opcionales:
-// si no llegan, el store los deriva del valor total y la cantidad.
-export type MovementInput = Omit<Movement, "id" | "costo" | "precioVenta" | "valor"> & {
+// Al registrar/editar un movimiento, costo, precioVenta y stockMinimo son
+// opcionales: si no llegan, el store los deriva o usa 0.
+export type MovementInput = Omit<Movement, "id" | "costo" | "precioVenta" | "stockMinimo" | "valor"> & {
   costo?: number;
   precioVenta?: number;
+  stockMinimo?: number;
   valor?: number;
 };
 
@@ -264,6 +272,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...m,
       costo,
       precioVenta: m.precioVenta ?? costo,
+      stockMinimo: m.stockMinimo ?? 0,
       valor: m.valor ?? costo * m.cantidad,
       categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
       id: crypto.randomUUID(),
@@ -299,6 +308,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...updated,
       costo,
       precioVenta: updated.precioVenta ?? costo,
+      stockMinimo: updated.stockMinimo ?? 0,
       valor: updated.valor ?? costo * updated.cantidad,
       categoria: updated.categoria || categories[0] || DEFAULT_CATEGORIES[0],
       id,
@@ -330,6 +340,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               unidadMedida: updated.unidadMedida !== undefined ? updated.unidadMedida : m.unidadMedida,
               costo: updated.costo !== undefined ? updated.costo : m.costo,
               precioVenta: updated.precioVenta !== undefined ? updated.precioVenta : m.precioVenta,
+              stockMinimo: updated.stockMinimo !== undefined ? updated.stockMinimo : m.stockMinimo,
               imagen: updated.imagen !== undefined ? updated.imagen : m.imagen,
             }
           : m
@@ -346,6 +357,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
       if (updated.costo !== undefined) patch.costo = updated.costo;
       if (updated.precioVenta !== undefined) patch.precio_venta = updated.precioVenta;
+      if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
       void supabase.from("movements").update(patch).ilike("codigo", oldCodigo.trim()).then(({ error }) => {
         if (error) {
           console.error("Error actualizando producto en Supabase:", error);
