@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
-import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "../types";
+import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { InventoryItem } from "../types";
 import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
+import UnidadInput from "./UnidadInput";
 
 interface Props {
   product: InventoryItem | null;
@@ -139,15 +140,7 @@ export default function EditProductModal({ product, onClose }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad</label>
-              <select
-                value={unidadMedida}
-                onChange={(e) => setUnidadMedida(e.target.value)}
-                className="input"
-              >
-                {UNIDADES_MEDIDA.map((u) => (
-                  <option key={u}>{u}</option>
-                ))}
-              </select>
+              <UnidadInput value={unidadMedida} onChange={setUnidadMedida} />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Costo (S/)</label>

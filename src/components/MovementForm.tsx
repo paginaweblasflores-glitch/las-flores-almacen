@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
-import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA, MARGEN_PRECIO_VENTA } from "../types";
+import { AREAS, DEFAULT_CATEGORIES, MARGEN_PRECIO_VENTA } from "../types";
 import type { MovementType, InventoryItem } from "../types";
 import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
+import UnidadInput from "./UnidadInput";
 
 const empty = (defaultCat?: string) => ({
   codigo: "",
@@ -625,21 +626,16 @@ export default function MovementForm() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="unidadMedida" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-              Unidad de medida
+              Unidad de medida <span className="text-stone-400 font-normal lowercase">(elige o escribe otra)</span>
             </label>
-            <select
+            <UnidadInput
               id="unidadMedida"
               value={form.unidadMedida}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, unidadMedida: e.target.value }));
+              onChange={(v) => {
+                setForm((f) => ({ ...f, unidadMedida: v }));
                 setError("");
               }}
-              className="input"
-            >
-              {UNIDADES_MEDIDA.map((u) => (
-                <option key={u}>{u}</option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* Row 3: Costo & Precio de venta */}
