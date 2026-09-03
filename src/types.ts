@@ -66,6 +66,46 @@ export type UnidadMedida = (typeof UNIDADES_MEDIDA)[number];
 // Rio puede sobrescribir el precio sugerido en el formulario.
 export const MARGEN_PRECIO_VENTA = 1 / 0.7;
 
+// Avisos escalonados según la cantidad total de movimientos guardados.
+// Ajusta los límites aquí si hace falta; deben ir de menor a mayor.
+export type NivelAviso = "info" | "warn" | "error";
+
+export const AVISOS_VOLUMEN: {
+  limite: number;
+  nivel: NivelAviso;
+  titulo: string;
+  mensaje: string;
+}[] = [
+  {
+    limite: 10000,
+    nivel: "info",
+    titulo: "El almacén ya tiene muchos movimientos",
+    mensaje:
+      "Conviene hacer limpieza: en “Exportar Excel” descarga los movimientos antiguos (puedes hacerlo mes por mes) y elimínalos para mantener el sistema ágil.",
+  },
+  {
+    limite: 15000,
+    nivel: "warn",
+    titulo: "Recordatorio: falta la limpieza de movimientos",
+    mensaje:
+      "Todavía no se hizo la limpieza. Exporta a Excel los movimientos antiguos (mes por mes) y bórralos de la base.",
+  },
+  {
+    limite: 20000,
+    nivel: "warn",
+    titulo: "El sistema se puede poner lento",
+    mensaje:
+      "Son demasiados datos. Descarga a Excel los movimientos que ya no se usan y elimínalos ahora para no afectar el rendimiento.",
+  },
+  {
+    limite: 25000,
+    nivel: "error",
+    titulo: "Contacta a los desarrolladores",
+    mensaje:
+      "La base de datos necesita optimización. Escribe a los desarrolladores para mejorar el rendimiento antes de seguir cargando más datos.",
+  },
+];
+
 export interface Movement {
   id: string;
   codigo: string;

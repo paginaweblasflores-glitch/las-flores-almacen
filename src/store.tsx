@@ -201,9 +201,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     const client = supabase;
 
+    // Supabase (PostgREST) devuelve como máximo 1000 filas por consulta.
+    // Se pagina con .range() hasta traer todos los movimientos reales.
+    async function fetchAllMovements() {
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client!
+          .from("movements")
+          .select("*")
+          .order("fecha", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+      }
+      return { data: rows, error: null as null };
+    }
+
     async function loadFromSupabase() {
       const [movementResult, categoryResult] = await Promise.all([
-        client!.from("movements").select("*").order("fecha", { ascending: true }),
+        fetchAllMovements(),
         client!.from("categories").select("name").order("name"),
       ]);
 

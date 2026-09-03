@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { useStore } from "../store";
+import { AVISOS_VOLUMEN, type NivelAviso } from "../types";
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -13,8 +14,12 @@ import {
 
 const BRAND = "#c8372a";
 const LEAF = "#3f7e2f";
-const AMBER = "#b45309";
-const STONE = "#a8a29e";
+
+const AVISO_ESTILO: Record<NivelAviso, string> = {
+  info: "bg-stone-50 border-stone-300 text-stone-700",
+  warn: "bg-amber-50 border-amber-300 text-amber-800",
+  error: "bg-brand-50 border-brand-300 text-brand-800",
+};
 
 function soles(n: number): string {
   return n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -47,6 +52,27 @@ export default function Dashboard() {
   const { movements, inventory, categories } = useStore();
   const now = new Date();
   const today = now.toISOString().split("T")[0];
+
+  // ---- Aviso por volumen de datos ----
+  const [avisosCerrados, setAvisosCerrados] = useState<Record<number, boolean>>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("avisos-volumen-cerrados") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const avisoVolumen = [...AVISOS_VOLUMEN].reverse().find((a) => movements.length >= a.limite);
+  const mostrarAviso = avisoVolumen && !avisosCerrados[avisoVolumen.limite];
+  function cerrarAviso() {
+    if (!avisoVolumen) return;
+    const next = { ...avisosCerrados, [avisoVolumen.limite]: true };
+    setAvisosCerrados(next);
+    try {
+      sessionStorage.setItem("avisos-volumen-cerrados", JSON.stringify(next));
+    } catch {
+      /* sessionStorage no disponible */
+    }
+  }
 
   // ---- Valores base ----
   const valorStock = (i: (typeof inventory)[number]) => Math.max(0, i.cantidadDisponible) * i.costo;
@@ -119,6 +145,30 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Aviso por volumen de datos */}
+      {mostrarAviso && avisoVolumen && (
+        <div className={`no-print flex items-start gap-3 rounded-xl border p-4 ${AVISO_ESTILO[avisoVolumen.nivel]}`}>
+          <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">
+              {avisoVolumen.titulo} · {movements.length.toLocaleString("es-PE")} movimientos
+            </p>
+            <p className="text-xs mt-0.5 opacity-90">{avisoVolumen.mensaje}</p>
+          </div>
+          <button
+            onClick={cerrarAviso}
+            aria-label="Cerrar aviso"
+            className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Cabecera del reporte (solo impresión) */}
       <div className="print-only mb-2">
         <div className="flex items-center gap-3 border-b-2 border-stone-800 pb-3">
