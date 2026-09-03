@@ -82,10 +82,10 @@ export default function Inventory() {
       </div>
 
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-13rem)]">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider [&>th]:bg-stone-50 [&>th]:border-b [&>th]:border-stone-200">
                 <th className="text-left px-4 py-3">Código</th>
                 <th className="text-left px-4 py-3">Producto</th>
                 <th className="text-left px-4 py-3">Categoría</th>
