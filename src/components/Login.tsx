@@ -54,7 +54,7 @@ export default function Login({ onLogin }: LoginProps) {
       className="min-h-screen flex items-center justify-center px-4 py-10"
       style={{
         background:
-          "radial-gradient(ellipse 90% 70% at 50% 22%, var(--color-brand-50) 0%, var(--color-canvas) 60%)",
+          "radial-gradient(circle at top, rgba(255,255,255,0.12), transparent 32%), linear-gradient(135deg, #4b0811 0%, #7b0d1e 35%, #a6102d 100%)",
       }}
     >
       <div className="w-full max-w-md">
