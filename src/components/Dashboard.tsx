@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { AVISOS_VOLUMEN, type NivelAviso } from "../types";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Bar,
   BarChart,
@@ -143,6 +145,95 @@ export default function Dashboard() {
     .sort((a, b) => b.valorStock - a.valorStock)
     .slice(0, 10);
 
+  function descargarPdf() {
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const generatedAt = now.toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" });
+
+    doc.setFontSize(16);
+    doc.setTextColor(45, 45, 45);
+    doc.text("Reporte de Almacen - Restaurante Las Flores", 14, 18);
+    doc.setFontSize(9);
+    doc.setTextColor(110, 105, 100);
+    doc.text(`Generado el ${generatedAt}`, 14, 25);
+
+    autoTable(doc, {
+      startY: 32,
+      head: [["Indicador", "Valor", "Detalle"]],
+      body: [
+        ["Productos", String(totalProductos), "registrados"],
+        ["Unidades", totalUnidades.toLocaleString("es-PE"), "en stock"],
+        ["Valor inventario", `S/ ${soles(valorInventario)}`, "stock x costo"],
+        ["Entradas", String(entradas.length), `S/ ${soles(valorEntradas)}`],
+        ["Salidas", String(salidas.length), `S/ ${soles(valorSalidas)}`],
+        ["Por reponer", String(porReponer.length + sinStock.length), `${sinStock.length} sin stock`],
+      ],
+      theme: "grid",
+      headStyles: { fillColor: [200, 55, 42] },
+      styles: { fontSize: 9 },
+    });
+
+    autoTable(doc, {
+      head: [["Categoria", "Productos", "Unidades", "Valor (S/)", "% del total"]],
+      body: porCategoria.map((r) => [
+        r.name,
+        String(r.productos),
+        r.unidades.toLocaleString("es-PE"),
+        soles(r.valor),
+        `${valorInventario > 0 ? ((r.valor / valorInventario) * 100).toFixed(1) : "0.0"}%`,
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [200, 55, 42] },
+      styles: { fontSize: 8 },
+      margin: { top: 14 },
+    });
+
+    autoTable(doc, {
+      head: [["Mes", "Entradas", "S/ Entradas", "Salidas", "S/ Salidas"]],
+      body: porMes.map((r) => [r.label, String(r.Entradas), soles(r.valorEnt), String(r.Salidas), soles(r.valorSal)]),
+      theme: "grid",
+      headStyles: { fillColor: [63, 126, 47] },
+      styles: { fontSize: 8 },
+      margin: { top: 14 },
+    });
+
+    autoTable(doc, {
+      head: [["Area", "Productos", "Unidades", "Valor (S/)"]],
+      body: porArea.map((r) => [r.name, String(r.productos), r.unidades.toLocaleString("es-PE"), soles(r.valor)]),
+      theme: "grid",
+      headStyles: { fillColor: [100, 100, 100] },
+      styles: { fontSize: 8 },
+      margin: { top: 14 },
+    });
+
+    autoTable(doc, {
+      head: [["Codigo", "Producto", "Disponible", "Costo unit.", "Valor en stock (S/)"]],
+      body: topProductos.map((i) => [
+        i.codigo,
+        i.descripcion,
+        `${i.cantidadDisponible} ${i.unidadMedida || ""}`.trim(),
+        soles(i.costo),
+        soles(i.valorStock),
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [200, 55, 42] },
+      styles: { fontSize: 8 },
+      margin: { top: 14 },
+    });
+
+    if (porReponer.length > 0) {
+      autoTable(doc, {
+        head: [["Codigo", "Producto", "Disponible", "Minimo", "Area"]],
+        body: porReponer.map((i) => [i.codigo, i.descripcion, `${i.cantidadDisponible} ${i.unidadMedida || ""}`.trim(), String(i.stockMinimo), i.area]),
+        theme: "grid",
+        headStyles: { fillColor: [217, 142, 24] },
+        styles: { fontSize: 8 },
+        margin: { top: 14 },
+      });
+    }
+
+    doc.save(`reporte_almacen_${today}.pdf`);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Aviso por volumen de datos */}
@@ -189,8 +280,8 @@ export default function Dashboard() {
           <p className="text-sm text-stone-400 mt-0.5">Resumen general del estado del almacén</p>
         </div>
         <button
-          onClick={() => window.print()}
-          title="Se abre el diálogo de impresión: elige 'Guardar como PDF'"
+          onClick={descargarPdf}
+          title="Descargar reporte en PDF"
           className="btn-brand flex items-center gap-2 px-4 py-2 text-sm shadow-sm"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
