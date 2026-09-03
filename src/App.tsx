@@ -70,7 +70,6 @@ function PageContent({ page }: { page: Page }) {
 
 export default function App() {
   const [page, setPage] = useState<Page>("inicio");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -108,8 +107,6 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  const labelHidden = sidebarOpen ? "" : "sm:hidden";
-
   return (
     <StoreProvider>
       <div className="h-full flex flex-col sm:flex-row bg-canvas">
@@ -139,14 +136,14 @@ export default function App() {
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-shell text-white transition-transform duration-200 sm:static sm:z-auto ${
+          className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-shell text-white transition-transform duration-200 sm:static sm:z-auto sm:w-52 ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
-          } sm:translate-x-0 ${sidebarOpen ? "sm:w-52" : "sm:w-14"} overflow-hidden`}
+          } sm:translate-x-0 overflow-hidden`}
         >
           {/* Title */}
-          <div className={`flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5 ${sidebarOpen ? "" : "sm:px-0 sm:justify-center"}`}>
+          <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5">
             <img src="/logo.png" alt="Las Flores" className="w-9 h-9 flex-shrink-0 rounded-full bg-white object-contain p-1" />
-            <span className={`font-serif font-semibold text-[15px] tracking-tight whitespace-nowrap ${labelHidden}`}>Sistema Almacén</span>
+            <span className="font-serif font-semibold text-[15px] tracking-tight whitespace-nowrap">Sistema Almacén</span>
             <button
               onClick={() => setMobileOpen(false)}
               aria-label="Cerrar menú"
@@ -174,33 +171,22 @@ export default function App() {
                 }`}
               >
                 <span className="flex-shrink-0">{item.icon}</span>
-                <span className={`whitespace-nowrap ${labelHidden}`}>{item.label}</span>
+                <span className="whitespace-nowrap">{item.label}</span>
               </button>
             ))}
           </nav>
 
-          {/* Bottom Buttons */}
-          <div className="flex flex-col gap-0.5 border-t border-white/10">
+          {/* Cerrar sesión */}
+          <div className="border-t border-white/10 pb-2">
             <button
               onClick={handleLogout}
               title="Cerrar sesión"
-              className="flex items-center justify-center gap-2 p-3 text-white/45 hover:text-brand-300 hover:bg-white/5 transition-colors"
+              className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white/50 hover:text-brand-300 hover:bg-white/5 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4.5 h-4.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              <span className={`text-sm ${labelHidden}`}>Cerrar sesión</span>
-            </button>
-
-            {/* Collapse toggle — solo escritorio */}
-            <button
-              onClick={() => setSidebarOpen((v) => !v)}
-              aria-label={sidebarOpen ? "Colapsar menú" : "Expandir menú"}
-              className="hidden sm:flex items-center justify-center p-3 text-white/45 hover:text-white/80 transition-colors"
-            >
-              <svg className={`w-4 h-4 transition-transform ${sidebarOpen ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
+              <span className="whitespace-nowrap">Cerrar sesión</span>
             </button>
           </div>
         </aside>
