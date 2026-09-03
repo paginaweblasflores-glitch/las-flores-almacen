@@ -56,25 +56,29 @@ export default function Inventory() {
 
       {/* Barra de filtros: búsqueda a la izquierda, categoría a la derecha */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por código, nombre, área..."
-          className="input flex-1"
-        />
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="input w-full sm:w-56 bg-white"
-          title="Filtrar por categoría"
-        >
-          <option value="Todas">Todas las categorías</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
-          ))}
-        </select>
+        <div className="flex-1 min-w-0">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por código, nombre, área..."
+            className="input"
+          />
+        </div>
+        <div className="sm:w-64 flex-shrink-0">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="input bg-white"
+            title="Filtrar por categoría"
+          >
+            <option value="Todas">Todas las categorías</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
