@@ -1,0 +1,8 @@
+{
+  "title": "Sistema Almacén · Las Flores",
+  "description": "Sistema de control de inventario del almacén de Restaurante Las Flores: registro de entradas y salidas, inventario en tiempo real y reportes.",
+  "language": "es",
+  "robots": {
+    "index": false
+  }
+}

@@ -283,11 +283,11 @@ export default function MovementForm() {
     matchedItem.cantidadDisponible <= 0;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+    <div className="bg-white border border-stone-200 rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs">
+      <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-3">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-sky-500" />
-          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+          <div className="w-2.5 h-2.5 rounded-full bg-brand-500" />
+          <h2 className="text-sm font-bold text-stone-800 uppercase tracking-wider">
             Registrar Movimiento
           </h2>
         </div>
@@ -295,7 +295,7 @@ export default function MovementForm() {
           <button
             type="button"
             onClick={handleClearProduct}
-            className="text-xs text-slate-400 hover:text-rose-600 transition-colors flex items-center gap-1 font-medium cursor-pointer"
+            className="text-xs text-stone-400 hover:text-brand-600 transition-colors flex items-center gap-1 font-medium cursor-pointer"
             title="Limpiar campos de producto"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -308,50 +308,50 @@ export default function MovementForm() {
 
       {/* Matched Product Alert / Info Card */}
       {matchedItem && (
-        <div className="bg-sky-50/80 border border-sky-200/80 rounded-lg p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all">
+        <div className="bg-brand-50/80 border border-brand-200/80 rounded-lg p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all">
           <div className="flex items-start gap-2.5">
             {matchedItem.imagen ? (
               <img
                 src={matchedItem.imagen}
                 alt={matchedItem.descripcion}
-                className="w-10 h-10 rounded-lg object-cover border border-sky-200 flex-shrink-0"
+                className="w-10 h-10 rounded-lg object-cover border border-brand-200 flex-shrink-0"
               />
             ) : (
-              <div className="w-8 h-8 rounded bg-sky-600 text-white flex items-center justify-center flex-shrink-0 font-mono font-bold text-xs mt-0.5 sm:mt-0">
+              <div className="w-8 h-8 rounded bg-brand-600 text-white flex items-center justify-center flex-shrink-0 font-mono font-bold text-xs mt-0.5 sm:mt-0">
                 📦
               </div>
             )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono font-bold text-sky-900 bg-sky-100 px-1.5 py-0.5 rounded text-[11px]">
+                <span className="font-mono font-bold text-brand-900 bg-brand-100 px-1.5 py-0.5 rounded text-[11px]">
                   {matchedItem.codigo}
                 </span>
-                <span className="font-semibold text-slate-900">{matchedItem.descripcion}</span>
+                <span className="font-semibold text-stone-900">{matchedItem.descripcion}</span>
                 {matchedItem.categoria && (
                   <span className="text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
                     {matchedItem.categoria}
                   </span>
                 )}
-                <span className="text-slate-500 font-normal">({matchedItem.area})</span>
+                <span className="text-stone-500 font-normal">({matchedItem.area})</span>
               </div>
-              <div className="text-slate-600 mt-1 flex items-center gap-3 flex-wrap">
+              <div className="text-stone-600 mt-1 flex items-center gap-3 flex-wrap">
                 <span>
                   Stock actual:{" "}
                   <strong
                     className={
                       matchedItem.cantidadDisponible <= 0
-                        ? "text-rose-600 font-bold"
+                        ? "text-brand-600 font-bold"
                         : matchedItem.cantidadDisponible <= 5
                         ? "text-amber-600 font-bold"
-                        : "text-emerald-700 font-bold"
+                        : "text-leaf-700 font-bold"
                     }
                   >
                     {matchedItem.cantidadDisponible} un.
                   </strong>
                 </span>
-                <span className="text-slate-300">•</span>
+                <span className="text-stone-300">•</span>
                 <span>
-                  Precio ref: <strong className="text-slate-800">S/ {matchedItem.valor.toFixed(2)} c/u</strong>
+                  Precio ref: <strong className="text-stone-800">S/ {matchedItem.valor.toFixed(2)} c/u</strong>
                 </span>
               </div>
             </div>
@@ -361,7 +361,7 @@ export default function MovementForm() {
             <button
               type="button"
               onClick={handleSetMaxStock}
-              className="self-start sm:self-center px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded text-[11px] font-medium transition-colors whitespace-nowrap flex items-center gap-1 shadow-xs cursor-pointer"
+              className="self-start sm:self-center px-2.5 py-1 bg-brand-600 hover:bg-brand-700 text-white rounded text-[11px] font-medium transition-colors whitespace-nowrap flex items-center gap-1 shadow-xs cursor-pointer"
             >
               Usar todo el stock ({matchedItem.cantidadDisponible})
             </button>
@@ -371,8 +371,8 @@ export default function MovementForm() {
 
       {/* Zero stock alert for exit */}
       {isZeroStock && (
-        <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-xs text-rose-700 flex items-center gap-2">
-          <svg className="w-4 h-4 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-2.5 text-xs text-brand-700 flex items-center gap-2">
+          <svg className="w-4 h-4 text-brand-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <span><strong>Sin existencias:</strong> Este producto tiene 0 unidades en inventario. No es posible registrar salidas.</span>
@@ -381,8 +381,8 @@ export default function MovementForm() {
 
       {/* Excess stock alert for exit */}
       {isExcessStock && (
-        <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-xs text-rose-700 flex items-center gap-2">
-          <svg className="w-4 h-4 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-2.5 text-xs text-brand-700 flex items-center gap-2">
+          <svg className="w-4 h-4 text-brand-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span>
@@ -398,11 +398,11 @@ export default function MovementForm() {
           {/* Código with Autocomplete */}
           <div ref={codeContainerRef} className="relative flex flex-col gap-1">
             <div className="flex items-center justify-between">
-              <label htmlFor="codigo" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <label htmlFor="codigo" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                 Código
               </label>
               {matchedItem && (
-                <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-0.5">
+                <span className="text-[11px] text-leaf-600 font-medium flex items-center gap-0.5">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
@@ -417,7 +417,7 @@ export default function MovementForm() {
                 onChange={(e) => handleCodigoChange(e.target.value)}
                 onFocus={() => setShowCodeSuggestions(true)}
                 placeholder="Ej. A001"
-                className={`input font-mono uppercase pr-8 ${matchedItem ? "border-sky-400 bg-sky-50/20" : ""}`}
+                className={`input font-mono uppercase pr-8 ${matchedItem ? "border-brand-400 bg-brand-50/20" : ""}`}
                 autoComplete="off"
               />
               {form.codigo && (
@@ -427,7 +427,7 @@ export default function MovementForm() {
                     setForm((f) => ({ ...f, codigo: "" }));
                     setShowCodeSuggestions(true);
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -438,44 +438,44 @@ export default function MovementForm() {
 
             {/* Code Suggestions Dropdown */}
             {showCodeSuggestions && codeMatches.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto divide-y divide-slate-100">
-                <div className="px-3 py-1.5 bg-slate-50 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-stone-200 rounded-lg shadow-lg max-h-56 overflow-y-auto divide-y divide-stone-100">
+                <div className="px-3 py-1.5 bg-stone-50 text-[11px] font-semibold text-stone-400 uppercase tracking-wider flex items-center justify-between">
                   <span>Productos existentes ({codeMatches.length})</span>
-                  <span className="text-[10px] text-slate-400 lowercase">clic para autocompletar</span>
+                  <span className="text-[10px] text-stone-400 lowercase">clic para autocompletar</span>
                 </div>
                 {codeMatches.map((item) => (
                   <button
                     key={item.codigo}
                     type="button"
                     onClick={() => selectProduct(item)}
-                    className="w-full text-left px-3 py-2 hover:bg-sky-50/70 transition-colors flex items-center justify-between gap-2 group cursor-pointer"
+                    className="w-full text-left px-3 py-2 hover:bg-brand-50/70 transition-colors flex items-center justify-between gap-2 group cursor-pointer"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       {item.imagen ? (
-                        <img src={item.imagen} alt="" className="w-7 h-7 rounded object-cover border border-slate-200 flex-shrink-0" />
+                        <img src={item.imagen} alt="" className="w-7 h-7 rounded object-cover border border-stone-200 flex-shrink-0" />
                       ) : (
-                        <span className="w-7 h-7 rounded bg-slate-100 text-slate-500 flex items-center justify-center text-xs flex-shrink-0">📦</span>
+                        <span className="w-7 h-7 rounded bg-stone-100 text-stone-500 flex items-center justify-center text-xs flex-shrink-0">📦</span>
                       )}
                       <div className="flex flex-col min-w-0">
-                        <span className="font-mono text-xs font-bold text-sky-700 group-hover:text-sky-900">
+                        <span className="font-mono text-xs font-bold text-brand-700 group-hover:text-brand-900">
                           {item.codigo}
                         </span>
-                        <span className="text-xs text-slate-600 truncate">{item.descripcion}</span>
+                        <span className="text-xs text-stone-600 truncate">{item.descripcion}</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0 text-right">
                       <span
                         className={`text-xs font-mono font-semibold ${
                           item.cantidadDisponible <= 0
-                            ? "text-rose-600"
+                            ? "text-brand-600"
                             : item.cantidadDisponible <= 5
                             ? "text-amber-600"
-                            : "text-emerald-600"
+                            : "text-leaf-600"
                         }`}
                       >
                         {item.cantidadDisponible} un.
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
+                      <span className="text-[10px] text-stone-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
                     </div>
                   </button>
                 ))}
@@ -485,7 +485,7 @@ export default function MovementForm() {
 
           {/* Descripción with Autocomplete */}
           <div ref={descContainerRef} className="relative flex flex-col gap-1">
-            <label htmlFor="descripcion" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            <label htmlFor="descripcion" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Descripción
             </label>
             <div className="relative">
@@ -495,7 +495,7 @@ export default function MovementForm() {
                 onChange={(e) => handleDescripcionChange(e.target.value)}
                 onFocus={() => setShowDescSuggestions(true)}
                 placeholder="Nombre del producto"
-                className={`input pr-8 ${matchedItem ? "border-sky-400 bg-sky-50/20" : ""}`}
+                className={`input pr-8 ${matchedItem ? "border-brand-400 bg-brand-50/20" : ""}`}
                 autoComplete="off"
               />
               {form.descripcion && (
@@ -505,7 +505,7 @@ export default function MovementForm() {
                     setForm((f) => ({ ...f, descripcion: "" }));
                     setShowDescSuggestions(true);
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -516,33 +516,33 @@ export default function MovementForm() {
 
             {/* Desc Suggestions Dropdown */}
             {showDescSuggestions && descMatches.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto divide-y divide-slate-100">
-                <div className="px-3 py-1.5 bg-slate-50 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white border border-stone-200 rounded-lg shadow-lg max-h-56 overflow-y-auto divide-y divide-stone-100">
+                <div className="px-3 py-1.5 bg-stone-50 text-[11px] font-semibold text-stone-400 uppercase tracking-wider flex items-center justify-between">
                   <span>Productos coincidentes ({descMatches.length})</span>
-                  <span className="text-[10px] text-slate-400 lowercase">clic para autocompletar</span>
+                  <span className="text-[10px] text-stone-400 lowercase">clic para autocompletar</span>
                 </div>
                 {descMatches.map((item) => (
                   <button
                     key={item.codigo}
                     type="button"
                     onClick={() => selectProduct(item)}
-                    className="w-full text-left px-3 py-2 hover:bg-sky-50/70 transition-colors flex items-center justify-between gap-2 group cursor-pointer"
+                    className="w-full text-left px-3 py-2 hover:bg-brand-50/70 transition-colors flex items-center justify-between gap-2 group cursor-pointer"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       {item.imagen ? (
-                        <img src={item.imagen} alt="" className="w-7 h-7 rounded object-cover border border-slate-200 flex-shrink-0" />
+                        <img src={item.imagen} alt="" className="w-7 h-7 rounded object-cover border border-stone-200 flex-shrink-0" />
                       ) : (
-                        <span className="w-7 h-7 rounded bg-slate-100 text-slate-500 flex items-center justify-center text-xs flex-shrink-0">📦</span>
+                        <span className="w-7 h-7 rounded bg-stone-100 text-stone-500 flex items-center justify-center text-xs flex-shrink-0">📦</span>
                       )}
                       <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-medium text-slate-800 truncate group-hover:text-sky-900">
+                        <span className="text-xs font-medium text-stone-800 truncate group-hover:text-brand-900">
                           {item.descripcion}
                         </span>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="font-mono text-[11px] text-sky-700 bg-sky-50 px-1 rounded">
+                          <span className="font-mono text-[11px] text-brand-700 bg-brand-50 px-1 rounded">
                             {item.codigo}
                           </span>
-                          <span className="text-[10px] text-slate-400">{item.area}</span>
+                          <span className="text-[10px] text-stone-400">{item.area}</span>
                         </div>
                       </div>
                     </div>
@@ -550,15 +550,15 @@ export default function MovementForm() {
                       <span
                         className={`text-xs font-mono font-semibold ${
                           item.cantidadDisponible <= 0
-                            ? "text-rose-600"
+                            ? "text-brand-600"
                             : item.cantidadDisponible <= 5
                             ? "text-amber-600"
-                            : "text-emerald-600"
+                            : "text-leaf-600"
                         }`}
                       >
                         {item.cantidadDisponible} un.
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
+                      <span className="text-[10px] text-stone-400 font-mono">S/ {item.valor.toFixed(2)} c/u</span>
                     </div>
                   </button>
                 ))}
@@ -573,8 +573,8 @@ export default function MovementForm() {
             id="cantidad"
             action={
               matchedItem && (
-                <span className="text-[11px] text-slate-400">
-                  Disp: <strong className="text-slate-700">{matchedItem.cantidadDisponible}</strong>
+                <span className="text-[11px] text-stone-400">
+                  Disp: <strong className="text-stone-700">{matchedItem.cantidadDisponible}</strong>
                 </span>
               )
             }
@@ -588,13 +588,13 @@ export default function MovementForm() {
                 value={form.cantidad}
                 onChange={(e) => handleCantidadChange(e.target.value)}
                 placeholder="0"
-                className={`input font-mono ${isExcessStock ? "border-rose-400 bg-rose-50/30 text-rose-800" : ""}`}
+                className={`input font-mono ${isExcessStock ? "border-brand-400 bg-brand-50/30 text-brand-800" : ""}`}
               />
               {matchedItem && matchedItem.cantidadDisponible > 0 && form.tipo === "Salida" && (
                 <button
                   type="button"
                   onClick={handleSetMaxStock}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded text-[10px] font-semibold transition-colors cursor-pointer"
                   title="Usar stock máximo disponible"
                 >
                   MÁX
@@ -609,7 +609,7 @@ export default function MovementForm() {
             id="valor"
             action={
               matchedItem && (
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-stone-400">
                   Ref: S/ {matchedItem.valor.toFixed(2)} c/u
                 </span>
               )
@@ -637,7 +637,7 @@ export default function MovementForm() {
                       valor: (qty * matchedItem.valor).toFixed(2),
                     }));
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded font-medium cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-brand-600 hover:text-brand-800 bg-brand-50 px-1.5 py-0.5 rounded font-medium cursor-pointer"
                   title="Recalcular según precio unitario de referencia"
                 >
                   Auto
@@ -678,7 +678,7 @@ export default function MovementForm() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           {/* Área */}
           <div className="flex flex-col gap-1">
-            <label htmlFor="area" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            <label htmlFor="area" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Área
             </label>
             <select
@@ -698,7 +698,7 @@ export default function MovementForm() {
 
           {/* Categoría */}
           <div className="flex flex-col gap-1">
-            <label htmlFor="categoria" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            <label htmlFor="categoria" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Categoría
             </label>
             <CategorySelect
@@ -715,8 +715,8 @@ export default function MovementForm() {
         {/* Motivo (solo para Salidas) */}
         {form.tipo === "Salida" && (
           <div className="flex flex-col gap-1">
-            <label htmlFor="motivo" className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-              Motivo de salida <span className="text-slate-400 font-normal lowercase">(opcional)</span>
+            <label htmlFor="motivo" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Motivo de salida <span className="text-stone-400 font-normal lowercase">(opcional)</span>
             </label>
             <input
               id="motivo"
@@ -735,14 +735,14 @@ export default function MovementForm() {
         {/* Imagen del Producto */}
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-              Imagen del producto <span className="text-slate-400 font-normal lowercase">(opcional)</span>
+            <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Imagen del producto <span className="text-stone-400 font-normal lowercase">(opcional)</span>
             </label>
             {form.imagen && (
               <button
                 type="button"
                 onClick={handleRemoveImage}
-                className="text-[11px] text-rose-500 hover:text-rose-700 font-medium cursor-pointer"
+                className="text-[11px] text-brand-500 hover:text-brand-700 font-medium cursor-pointer"
               >
                 Quitar foto
               </button>
@@ -759,18 +759,18 @@ export default function MovementForm() {
           />
 
           {form.imagen ? (
-            <div className="flex items-center gap-3 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="flex items-center gap-3 p-2 bg-stone-50 border border-stone-200 rounded-lg">
               <img
                 src={form.imagen}
                 alt="Vista previa del producto"
-                className="w-12 h-12 rounded-md object-cover border border-slate-200 shadow-xs flex-shrink-0"
+                className="w-12 h-12 rounded-md object-cover border border-stone-200 shadow-xs flex-shrink-0"
               />
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-xs font-medium text-slate-700 truncate">Imagen cargada</span>
+                <span className="text-xs font-medium text-stone-700 truncate">Imagen cargada</span>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-[11px] text-sky-600 hover:text-sky-800 font-medium text-left mt-0.5 cursor-pointer"
+                  className="text-[11px] text-brand-600 hover:text-brand-800 font-medium text-left mt-0.5 cursor-pointer"
                 >
                   Cambiar imagen
                 </button>
@@ -781,9 +781,9 @@ export default function MovementForm() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploadingImage}
-              className="w-full py-2.5 px-3 border border-dashed border-slate-300 hover:border-sky-500 hover:bg-sky-50/50 rounded-lg text-xs text-slate-600 flex items-center justify-center gap-2 transition-all cursor-pointer bg-slate-50/50"
+              className="w-full py-2.5 px-3 border border-dashed border-stone-300 hover:border-brand-500 hover:bg-brand-50/50 rounded-lg text-xs text-stone-600 flex items-center justify-center gap-2 transition-all cursor-pointer bg-stone-50/50"
             >
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span>{isUploadingImage ? "Procesando imagen..." : "Subir foto / imagen del producto"}</span>
@@ -792,10 +792,10 @@ export default function MovementForm() {
         </div>
 
         {/* BOTTOM SECTION: Buttons & Actions */}
-        <div className="border-t border-slate-100 pt-4 flex flex-col gap-3 mt-1">
+        <div className="border-t border-stone-100 pt-4 flex flex-col gap-3 mt-1">
           {/* Tipo de movimiento Selector */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            <label className="text-xs font-semibold text-stone-500 uppercase tracking-wide">
               Tipo de movimiento
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -811,9 +811,9 @@ export default function MovementForm() {
                   className={`py-2.5 px-4 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     form.tipo === t
                       ? t === "Entrada"
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20"
-                        : "bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20"
-                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                        ? "bg-leaf-600 text-white border-leaf-600 shadow-xs ring-2 ring-leaf-500/20"
+                        : "bg-brand-600 text-white border-brand-600 shadow-xs ring-2 ring-brand-500/20"
+                      : "bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100 hover:border-stone-300"
                   }`}
                 >
                   {t === "Entrada" ? (
@@ -837,8 +837,8 @@ export default function MovementForm() {
           </div>
 
           {error && (
-            <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
-              <svg className="w-4 h-4 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
+              <svg className="w-4 h-4 text-brand-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span>{error}</span>
@@ -846,8 +846,8 @@ export default function MovementForm() {
           )}
 
           {success && (
-            <div className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
-              <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-xs text-leaf-800 bg-leaf-50 border border-leaf-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
+              <svg className="w-4 h-4 text-leaf-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span>{success}</span>
@@ -860,10 +860,10 @@ export default function MovementForm() {
             disabled={Boolean(isZeroStock || isExcessStock)}
             className={`w-full py-3 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer ${
               isZeroStock || isExcessStock
-                ? "bg-slate-300 cursor-not-allowed text-slate-500"
+                ? "bg-stone-300 cursor-not-allowed text-stone-500"
                 : form.tipo === "Entrada"
-                ? "bg-slate-900 hover:bg-slate-800 active:bg-slate-950"
-                : "bg-rose-600 hover:bg-rose-700 active:bg-rose-800"
+                ? "bg-stone-900 hover:bg-stone-800 active:bg-stone-950"
+                : "bg-brand-600 hover:bg-brand-700 active:bg-brand-800"
             }`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -891,7 +891,7 @@ function Field({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+        <label htmlFor={id} className="text-xs font-medium text-stone-500 uppercase tracking-wide">
           {label}
         </label>
         {action}

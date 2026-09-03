@@ -14,6 +14,12 @@ logs/
 .claude-replay.*
 .tmp-*
 
+# Documentación de trabajo interna — no forma parte del proyecto
+doc/
+
+# Herramientas del andamiaje anterior (no se usan; el deploy es Vercel)
+.figma/
+
 # Platform-managed agentplat state, not project source. In the
 # client-initiated single-repo workspace layout (make's `Path: "."` spec) the
 # repo root IS the workspace root, so these land inside this repo rather than

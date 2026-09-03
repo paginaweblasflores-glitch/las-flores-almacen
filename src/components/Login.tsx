@@ -14,7 +14,7 @@ export default function Login({ onLogin }: LoginProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!username || !password) {
       setError("Por favor completa todos los campos");
       return;
@@ -50,28 +50,50 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#C41E3A" }}>
-      <div className="w-full max-w-md px-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Sistema Almacén</h1>
-            <p className="text-sm text-slate-500">Inicia sesión para continuar</p>
+    <div
+      className="min-h-screen flex items-center justify-center px-4 py-10"
+      style={{
+        background:
+          "radial-gradient(ellipse 90% 70% at 50% 22%, var(--color-brand-50) 0%, var(--color-canvas) 60%)",
+      }}
+    >
+      <div className="w-full max-w-md">
+        <div className="bg-surface rounded-3xl shadow-xl ring-1 ring-line/70 px-8 py-9 sm:px-10">
+          {/* Logo */}
+          <div className="flex justify-center">
+            <div className="rounded-full border border-brand-200 p-2.5">
+              <img
+                src="/logo.png"
+                alt="Consorcio Las Flores"
+                className="w-16 h-16 object-contain"
+              />
+            </div>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Error Message */}
+          {/* Título */}
+          <div className="text-center mt-4 mb-7">
+            <h1 className="font-serif text-2xl font-bold text-brand-600 tracking-tight">
+              Sistema Almacén
+            </h1>
+            <p className="text-sm text-muted mt-1">
+              Restaurante Las Flores · desde 1980
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm text-red-700">{error}</p>
+              <div className="bg-brand-50 border border-brand-200 rounded-lg p-3">
+                <p className="text-sm text-brand-700">{error}</p>
               </div>
             )}
 
-            {/* Username Field */}
-            <div className="flex flex-col gap-2">
-              <label htmlFor="username" className="text-sm font-semibold text-slate-700">
-                Usuario
+            {/* Usuario */}
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="username"
+                className="text-xs font-semibold uppercase tracking-wider text-ink"
+              >
+                Usuario <span className="text-brand-500">*</span>
               </label>
               <div className="relative">
                 <select
@@ -82,13 +104,13 @@ export default function Login({ onLogin }: LoginProps) {
                     setError("");
                   }}
                   disabled={loading}
-                  className="w-full appearance-none px-4 py-2.5 pr-12 border-2 border-slate-300 rounded-lg bg-white focus:outline-none focus:border-red-600 focus:ring-2 focus:ring-red-200 transition-all disabled:bg-gray-100"
+                  className="w-full appearance-none rounded-lg border border-line bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-stone-100"
                 >
                   <option value="">Selecciona tu usuario...</option>
                   <option value={LOGIN_USERNAME}>{LOGIN_USERNAME}</option>
                 </select>
                 <svg
-                  className="pointer-events-none absolute inset-y-0 right-0 my-auto mr-3 h-5 w-5 text-slate-400"
+                  className="pointer-events-none absolute inset-y-0 right-0 my-auto mr-3.5 h-5 w-5 text-muted"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -98,10 +120,13 @@ export default function Login({ onLogin }: LoginProps) {
               </div>
             </div>
 
-            {/* Password Field */}
-            <div className="flex flex-col gap-2">
-              <label htmlFor="password" className="text-sm font-semibold text-slate-700">
-                Contraseña
+            {/* Contraseña */}
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="password"
+                className="text-xs font-semibold uppercase tracking-wider text-ink"
+              >
+                Contraseña <span className="text-brand-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -114,14 +139,14 @@ export default function Login({ onLogin }: LoginProps) {
                   }}
                   placeholder="Ingresa tu contraseña"
                   disabled={loading}
-                  className="w-full px-4 py-2.5 pr-12 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-red-600 focus:ring-2 focus:ring-red-200 transition-all disabled:bg-gray-100"
+                  className="w-full rounded-lg border border-line bg-white px-4 py-3 pr-11 text-sm text-ink outline-none transition placeholder:text-stone-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-stone-100"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
                   aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted transition-colors hover:text-body"
                 >
                   {showPassword ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,16 +162,11 @@ export default function Login({ onLogin }: LoginProps) {
               </div>
             </div>
 
-            {/* Login Button */}
+            {/* Botón */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 rounded-lg font-bold text-white transition-all duration-200 flex items-center justify-center gap-2 shadow-lg mt-6"
-              style={{
-                backgroundColor: "#C41E3A",
-              }}
-              onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = "#A01730")}
-              onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = "#C41E3A")}
+              className="btn-brand mt-2 w-full py-3.5 px-4 flex items-center justify-center gap-2 shadow-sm"
             >
               {loading ? (
                 <>
@@ -157,21 +177,18 @@ export default function Login({ onLogin }: LoginProps) {
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v2a2 2 0 01-2 2H7a2 2 0 01-2-2v-2m14-4V7a2 2 0 00-2-2H7a2 2 0 00-2 2v6" />
+                  Ingresar al Sistema
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
-                  Ingresar
                 </>
               )}
             </button>
           </form>
 
-          {/* Info Footer */}
-          <div className="mt-6 pt-6 border-t border-slate-200 text-center">
-            <p className="text-xs text-slate-500">
-              Acceso protegido por Supabase
-            </p>
-          </div>
+          <p className="text-center text-[11px] text-muted mt-7">
+            Sistema Almacén · Restaurante Las Flores © 2026
+          </p>
         </div>
       </div>
     </div>

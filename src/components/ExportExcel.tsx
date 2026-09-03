@@ -64,8 +64,8 @@ export default function ExportExcel() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Exportar a Excel</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Descarga reportes en formato .xlsx</p>
+        <h1 className="text-2xl font-bold text-stone-900">Exportar a Excel</h1>
+        <p className="text-sm text-stone-400 mt-0.5">Descarga reportes en formato .xlsx</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -90,22 +90,22 @@ export default function ExportExcel() {
       </div>
 
       {/* Date range export */}
-      <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col gap-4">
+      <div className="bg-white border border-stone-200 rounded-lg p-5 flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Exportar por período</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Selecciona un rango de fechas y tipo de movimiento</p>
+          <h2 className="text-sm font-semibold text-stone-700 uppercase tracking-wider">Exportar por período</h2>
+          <p className="text-xs text-stone-400 mt-0.5">Selecciona un rango de fechas y tipo de movimiento</p>
         </div>
         <div className="flex flex-wrap gap-4 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Fecha inicial</label>
+            <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Fecha inicial</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Fecha final</label>
+            <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Fecha final</label>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tipo</label>
+            <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Tipo</label>
             <select value={tipo} onChange={(e) => setTipo(e.target.value as MovementType | "Todos")} className="input">
               <option>Todos</option>
               <option>Entrada</option>
@@ -114,7 +114,7 @@ export default function ExportExcel() {
           </div>
           <button
             onClick={exportByDate}
-            className="px-5 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors h-[38px] flex items-center gap-2"
+            className="px-5 py-2 bg-stone-800 text-white text-sm font-semibold rounded-lg hover:bg-stone-900 transition-colors h-[38px] flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             Descargar Excel
@@ -127,9 +127,9 @@ export default function ExportExcel() {
 
 function ExportCard({ title, description, accent, onExport }: { title: string; description: string; accent: "sky" | "emerald" | "rose"; onExport: () => void }) {
   const colors = {
-    sky: { bg: "bg-sky-50", border: "border-sky-200", btn: "bg-sky-600 hover:bg-sky-700", icon: "text-sky-600" },
-    emerald: { bg: "bg-emerald-50", border: "border-emerald-200", btn: "bg-emerald-600 hover:bg-emerald-700", icon: "text-emerald-600" },
-    rose: { bg: "bg-rose-50", border: "border-rose-200", btn: "bg-rose-500 hover:bg-rose-600", icon: "text-rose-500" },
+    sky: { bg: "bg-sunken", border: "border-line", btn: "bg-stone-800 hover:bg-stone-900", icon: "text-stone-600" },
+    emerald: { bg: "bg-leaf-50", border: "border-leaf-200", btn: "bg-leaf-600 hover:bg-leaf-700", icon: "text-leaf-600" },
+    rose: { bg: "bg-brand-50", border: "border-brand-200", btn: "bg-brand-600 hover:bg-brand-700", icon: "text-brand-600" },
   }[accent];
 
   return (
@@ -140,8 +140,8 @@ function ExportCard({ title, description, accent, onExport }: { title: string; d
         </svg>
       </div>
       <div>
-        <h3 className="font-semibold text-slate-800">{title}</h3>
-        <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+        <h3 className="font-semibold text-stone-800">{title}</h3>
+        <p className="text-xs text-stone-500 mt-0.5">{description}</p>
       </div>
       <button onClick={onExport} className={`mt-auto ${colors.btn} text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5`}>
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

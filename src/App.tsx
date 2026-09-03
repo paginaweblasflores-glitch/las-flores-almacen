@@ -109,17 +109,16 @@ export default function App() {
 
   return (
     <StoreProvider>
-      <div className="h-full flex bg-slate-100 font-[Outfit,system-ui,sans-serif]">
+      <div className="h-full flex bg-canvas">
         {/* Sidebar */}
         <aside
-          className={`flex-shrink-0 flex flex-col bg-slate-900 text-white transition-all duration-200 ${sidebarOpen ? "w-52" : "w-14"} overflow-hidden`}
+          className={`flex-shrink-0 flex flex-col bg-shell text-white transition-all duration-200 ${sidebarOpen ? "w-52" : "w-14"} overflow-hidden`}
         >
           {/* Title */}
-          {sidebarOpen && (
-            <div className="px-4 py-3.5 border-b border-slate-700/60">
-              <span className="font-semibold text-sm tracking-tight">Sistema Almacén</span>
-            </div>
-          )}
+          <div className={`flex items-center gap-2.5 border-b border-white/10 ${sidebarOpen ? "px-4 py-3.5" : "px-0 py-3.5 justify-center"}`}>
+            <img src="/logo.png" alt="Las Flores" className="w-7 h-7 flex-shrink-0 object-contain" />
+            {sidebarOpen && <span className="font-serif font-semibold text-[15px] tracking-tight whitespace-nowrap">Sistema Almacén</span>}
+          </div>
 
           {/* Nav */}
           <nav className="flex-1 py-3 flex flex-col gap-0.5">
@@ -129,8 +128,8 @@ export default function App() {
                 onClick={() => setPage(item.id)}
                 className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors w-full text-left ${
                   page === item.id
-                    ? "bg-sky-600/20 text-sky-400 border-r-2 border-sky-400"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                    ? "bg-brand-500/18 text-brand-200 border-r-2 border-brand-400 font-medium"
+                    : "text-white/55 hover:text-white hover:bg-white/5"
                 }`}
               >
                 <span className="flex-shrink-0">{item.icon}</span>
@@ -140,12 +139,12 @@ export default function App() {
           </nav>
 
           {/* Bottom Buttons */}
-          <div className="flex flex-col gap-0.5 border-t border-slate-700/60">
+          <div className="flex flex-col gap-0.5 border-t border-white/10">
             {/* Logout Button */}
             <button
               onClick={handleLogout}
               title="Cerrar sesión"
-              className="flex items-center justify-center gap-2 p-3 text-slate-500 hover:text-red-400 hover:bg-slate-800/60 transition-colors"
+              className="flex items-center justify-center gap-2 p-3 text-white/45 hover:text-brand-300 hover:bg-white/5 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -156,7 +155,7 @@ export default function App() {
             {/* Toggle Button */}
             <button
               onClick={() => setSidebarOpen((v) => !v)}
-              className="flex items-center justify-center p-3 text-slate-500 hover:text-slate-300 transition-colors"
+              className="flex items-center justify-center p-3 text-white/45 hover:text-white/80 transition-colors"
             >
               <svg className={`w-4 h-4 transition-transform ${sidebarOpen ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -172,28 +171,6 @@ export default function App() {
           </div>
         </main>
       </div>
-
-      {/* Input base styles */}
-      <style>{`
-        .input {
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          border-radius: 0.375rem;
-          padding: 0.45rem 0.625rem;
-          font-size: 0.875rem;
-          color: #0f172a;
-          font-family: inherit;
-          outline: none;
-          transition: border-color 0.15s;
-          width: 100%;
-        }
-        .input:focus {
-          border-color: #0ea5e9;
-          box-shadow: 0 0 0 3px rgba(14,165,233,0.12);
-        }
-        .input::placeholder { color: #94a3b8; }
-        select.input { cursor: pointer; }
-      `}</style>
     </StoreProvider>
   );
 }

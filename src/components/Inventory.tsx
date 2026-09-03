@@ -39,8 +39,8 @@ export default function Inventory() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Inventario</h1>
-          <p className="text-sm text-slate-400 mt-0.5">{inventory.length} productos registrados</p>
+          <h1 className="text-2xl font-bold text-stone-900">Inventario</h1>
+          <p className="text-sm text-stone-400 mt-0.5">{inventory.length} productos registrados</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Category Filter */}
@@ -68,17 +68,17 @@ export default function Inventory() {
 
           {inventory.length > 0 && (
             confirmClearAll ? (
-              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg">
-                <span className="text-xs text-rose-700 font-medium">¿Vaciar todo el almacén?</span>
+              <div className="flex items-center gap-1.5 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg">
+                <span className="text-xs text-brand-700 font-medium">¿Vaciar todo el almacén?</span>
                 <button
                   onClick={handleClearAll}
-                  className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold cursor-pointer"
+                  className="px-2 py-0.5 bg-brand-600 hover:bg-brand-700 text-white rounded text-xs font-semibold cursor-pointer"
                 >
                   Sí, vaciar
                 </button>
                 <button
                   onClick={() => setConfirmClearAll(false)}
-                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs cursor-pointer"
+                  className="px-2 py-0.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded text-xs cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -86,7 +86,7 @@ export default function Inventory() {
             ) : (
               <button
                 onClick={() => setConfirmClearAll(true)}
-                className="px-3 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-2 border border-brand-200 text-brand-600 hover:bg-brand-50 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
                 title="Eliminar todos los registros del almacén"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,11 +99,11 @@ export default function Inventory() {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
+              <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider">
                 <th className="text-left px-4 py-3">Código</th>
                 <th className="text-left px-4 py-3">Producto</th>
                 <th className="text-left px-4 py-3">Categoría</th>
@@ -115,20 +115,20 @@ export default function Inventory() {
                 <th className="text-center px-4 py-3">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-stone-50">
               {filtered.map((item) => (
-                <tr key={item.codigo} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs font-medium text-sky-700 bg-sky-50/40">{item.codigo}</td>
-                  <td className="px-4 py-3 text-slate-800 font-medium">
+                <tr key={item.codigo} className="hover:bg-stone-50/60 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs font-medium text-brand-700 bg-brand-50/40">{item.codigo}</td>
+                  <td className="px-4 py-3 text-stone-800 font-medium">
                     <div className="flex items-center gap-2.5">
                       {item.imagen ? (
                         <img
                           src={item.imagen}
                           alt={item.descripcion}
-                          className="w-8 h-8 rounded-md object-cover border border-slate-200 flex-shrink-0"
+                          className="w-8 h-8 rounded-md object-cover border border-stone-200 flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-md bg-slate-100 text-slate-400 flex items-center justify-center text-xs flex-shrink-0">
+                        <div className="w-8 h-8 rounded-md bg-stone-100 text-stone-400 flex items-center justify-center text-xs flex-shrink-0">
                           📦
                         </div>
                       )}
@@ -141,34 +141,34 @@ export default function Inventory() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`font-mono font-semibold ${item.cantidadDisponible <= 0 ? "text-rose-600 font-bold" : item.cantidadDisponible <= 5 ? "text-amber-600" : "text-slate-800"}`}>
+                    <span className={`font-mono font-semibold ${item.cantidadDisponible <= 0 ? "text-brand-600 font-bold" : item.cantidadDisponible <= 5 ? "text-amber-600" : "text-stone-800"}`}>
                       {item.cantidadDisponible}
                     </span>
                     {item.cantidadDisponible <= 0 ? (
-                      <span className="ml-2 text-xs text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded-full">agotado</span>
+                      <span className="ml-2 text-xs text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full">agotado</span>
                     ) : item.cantidadDisponible <= 5 ? (
                       <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">bajo</span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-slate-600">S/ {item.valor.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-slate-500">{item.fechaActualizacion.split("-").reverse().join("/")}</td>
-                  <td className="px-4 py-3 text-slate-600">{item.responsable}</td>
+                  <td className="px-4 py-3 text-right font-mono text-stone-600">S/ {item.valor.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-stone-500">{item.fechaActualizacion.split("-").reverse().join("/")}</td>
+                  <td className="px-4 py-3 text-stone-600">{item.responsable}</td>
                   <td className="px-4 py-3">
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{item.area}</span>
+                    <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{item.area}</span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     {deletingCode === item.codigo ? (
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={() => handleDeleteProduct(item.codigo)}
-                          className="px-2 py-0.5 bg-rose-600 text-white rounded text-[11px] font-semibold hover:bg-rose-700 cursor-pointer"
+                          className="px-2 py-0.5 bg-brand-600 text-white rounded text-[11px] font-semibold hover:bg-brand-700 cursor-pointer"
                           title="Confirmar eliminación de este producto y sus registros"
                         >
                           Eliminar
                         </button>
                         <button
                           onClick={() => setDeletingCode(null)}
-                          className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[11px] hover:bg-slate-300 cursor-pointer"
+                          className="px-2 py-0.5 bg-stone-200 text-stone-700 rounded text-[11px] hover:bg-stone-300 cursor-pointer"
                           title="Cancelar"
                         >
                           No
@@ -178,7 +178,7 @@ export default function Inventory() {
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => setEditingProduct(item)}
-                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
+                          className="p-1.5 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
                           title="Editar producto"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,7 +187,7 @@ export default function Inventory() {
                         </button>
                         <button
                           onClick={() => setDeletingCode(item.codigo)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
+                          className="p-1.5 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
                           title="Eliminar producto y todos sus movimientos"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,7 +200,7 @@ export default function Inventory() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400 text-sm">No se encontraron productos.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-stone-400 text-sm">No se encontraron productos.</td></tr>
               )}
             </tbody>
           </table>

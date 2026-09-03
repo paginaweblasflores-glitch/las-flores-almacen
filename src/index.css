@@ -1,6 +1,54 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=DM+Mono:wght@400;500&display=swap');
 @import 'tailwindcss';
 
+/* ------------------------------------------------------------------ */
+/*  Tokens de diseño — Sistema Almacén Las Flores                     */
+/*  Marca derivada del logo: rojo tulipán + verde hoja + neutros      */
+/*  cálidos. El rojo es acento, no inunda la interfaz.                */
+/* ------------------------------------------------------------------ */
+@theme {
+  --font-sans: 'Outfit', system-ui, sans-serif;
+  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-mono: 'DM Mono', ui-monospace, monospace;
+
+  /* Marca — rojo tulipán del logo */
+  --color-brand-50: #fceeeb;
+  --color-brand-100: #f9d9d3;
+  --color-brand-200: #f1b3a8;
+  --color-brand-300: #e68a7a;
+  --color-brand-400: #d95f4b;
+  --color-brand-500: #c8372a;
+  --color-brand-600: #ae2c20;
+  --color-brand-700: #8e251b;
+  --color-brand-800: #6c1e16;
+  --color-brand-900: #4c1610;
+
+  /* Verde hoja — éxito / entradas / con stock */
+  --color-leaf-50: #edf5e9;
+  --color-leaf-100: #d7e9cd;
+  --color-leaf-200: #b6d7a4;
+  --color-leaf-300: #8fbf76;
+  --color-leaf-400: #66a24d;
+  --color-leaf-500: #3f7e2f;
+  --color-leaf-600: #356b27;
+  --color-leaf-700: #2a551f;
+  --color-leaf-800: #21421a;
+  --color-leaf-900: #1a3415;
+
+  /* Neutros cálidos (piedra con leve calidez roja) */
+  --color-canvas: #f7f5f2;
+  --color-surface: #ffffff;
+  --color-sunken: #f2efeb;
+  --color-line: #e6e1db;
+  --color-ink: #221f1c;
+  --color-body: #4c463f;
+  --color-muted: #8b8279;
+
+  /* Sidebar — negro cálido */
+  --color-shell: #1c1917;
+}
+
+/* Mapa heredado de variables semánticas (se conserva para compatibilidad) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -10,8 +58,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+  --color-muted-token: var(--muted);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--border);
@@ -22,20 +69,20 @@
 }
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f7f5f2;
+  --foreground: #221f1c;
   --card: #ffffff;
-  --card-foreground: #0f172a;
-  --primary: #0f172a;
-  --primary-foreground: #f8fafc;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #334155;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #0ea5e9;
+  --card-foreground: #221f1c;
+  --primary: #c8372a;
+  --primary-foreground: #ffffff;
+  --secondary: #f2efeb;
+  --secondary-foreground: #4c463f;
+  --muted: #f2efeb;
+  --muted-foreground: #8b8279;
+  --accent: #c8372a;
   --accent-foreground: #ffffff;
-  --border: #e2e8f0;
-  --ring: #0ea5e9;
+  --border: #e6e1db;
+  --ring: #c8372a;
   --radius: 0.5rem;
 }
 
@@ -44,25 +91,52 @@ html, body, #root {
   font-family: 'Outfit', system-ui, sans-serif;
 }
 
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: #d6cfc6 transparent;
 }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #d6cfc6; border-radius: 3px; }
 
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+.font-mono { font-family: 'DM Mono', monospace; }
+.font-serif { font-family: 'Fraunces', Georgia, serif; }
 
-*::-webkit-scrollbar-track {
-  background: transparent;
+/* ------------------------------------------------------------------ */
+/*  Controles base                                                    */
+/* ------------------------------------------------------------------ */
+.input {
+  background: #fff;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
 }
+.input:focus {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgba(200, 55, 42, 0.14);
+}
+.input::placeholder { color: #a8a29e; }
+select.input { cursor: pointer; }
 
-*::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+/* Botón primario de marca */
+.btn-brand {
+  background: var(--color-brand-500);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 0.625rem;
+  transition: background-color 0.15s;
 }
-
-.font-mono {
-  font-family: 'DM Mono', monospace;
-}
+.btn-brand:hover { background: var(--color-brand-600); }
+.btn-brand:active { background: var(--color-brand-700); }
+.btn-brand:disabled { opacity: 0.6; cursor: not-allowed; }
