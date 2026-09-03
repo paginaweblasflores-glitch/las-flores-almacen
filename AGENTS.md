@@ -14,18 +14,19 @@ pnpm run preview  # sirve la compilación de dist/
 
 ## Estructura del proyecto
 
-- `src/main.tsx` — punto de entrada; importa `src/index.css` y monta `src/App.tsx` en `#root`
-- `src/App.tsx` — componente raíz: autenticación con Supabase, sidebar y enrutado entre páginas
-- `src/components/` — pantallas y formularios (Login, Dashboard, Registrar, Inventory, Entries, Exits, DateSearch, CodeSearch, ExportExcel y los modales de edición)
-- `src/store.tsx` — estado global (movimientos, inventario derivado, categorías) y sincronización con Supabase
+- `src/main.tsx` — punto de entrada; monta `src/App.tsx` dentro de `ToastProvider`
+- `src/App.tsx` — componente raíz: autenticación con Supabase, sidebar responsive y enrutado entre pantallas
+- `src/components/` — pantallas y formularios (Login, Dashboard, Registrar, Inventory, Entries, Exits, DateSearch, CodeSearch, ExportExcel, los modales de edición) más `ComboBox` (desplegable editable), `Pager` (paginación)
+- `src/store.tsx` — estado global y sincronización con Supabase; el inventario y las listas (categorías, áreas, unidades) se derivan de los movimientos; la carga pagina de a 1000 filas
+- `src/toast.tsx` — avisos en pantalla (`useToast`, `<ToastProvider>`)
 - `src/supabaseClient.ts` — cliente de Supabase y constantes de acceso
-- `src/types.ts` — tipos (`Movement`, `InventoryItem`), áreas y categorías por defecto
+- `src/types.ts` — tipos (`Movement`, `InventoryItem`), listas por defecto (`AREAS`, `DEFAULT_CATEGORIES`, `UNIDADES_MEDIDA`), `MARGEN_PRECIO_VENTA`, `AVISOS_VOLUMEN`
 - `src/utils/image.ts` — redimensionado y compresión de imágenes de producto
-- `src/index.css` — entrada global de CSS, `@import 'tailwindcss'` y tokens de diseño
-- `index.html` — shell HTML de Vite con `#root`
-- `site.config.json` — título, descripción e idioma del sitio (los inyecta un plugin de `vite.config.ts`)
-- `supabase/schema.sql` — tablas, índices, políticas RLS y categorías iniciales
-- `scripts/import-almacen.mjs` — importador puntual del inventario; lee `doc/almacen.xlsx` (no versionado) o la ruta de `IMPORT_XLSX`
+- `src/utils/storage.ts` — sube la imagen comprimida a Supabase Storage (bucket `productos`); si falla usa un data URL
+- `src/index.css` — CSS global: `@import 'tailwindcss'`, tokens de marca (`@theme`), controles base y reglas de impresión
+- `index.html` — shell HTML de Vite; `site.config.json` complementa los metadatos vía `vite.config.ts`
+- `supabase/schema.sql` — esquema completo (tablas, índices, RLS, bucket de Storage, semillas). `supabase/migration-*.sql` — migraciones incrementales para bases de versiones anteriores
+- `scripts/import-almacen.mjs` — importador puntual del inventario desde el Excel de Rio; lee `doc/…​.xlsm` (no versionado) o `IMPORT_XLSX`. Modos `--dry-run` y `--sql`
 - `vite.config.ts` — configuración de Vite (React, Tailwind v4, alias `@` → `src`)
 - `.mise.toml` — versiones de Node.js y pnpm
 

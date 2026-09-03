@@ -1,30 +1,32 @@
+# Dependencias y compilados
 node_modules/
 dist/
 build/
 .cache/
+.vite/
+.vercel/
+*.tsbuildinfo
+
+# npm no se usa en este proyecto (es pnpm)
+package-lock.json
+
+# Entorno — solo se versiona el ejemplo
 .env*
 !.env.example
-.vercel/
-.vite/
-vite.config.*.timestamp-*
-*.tsbuildinfo
+
+# Logs y temporales
+*.log
 *-debug.log*
 logs/
-*.log
-.claude-replay.*
 .tmp-*
 
-# Documentación y datos de trabajo — no forman parte del proyecto
+# Datos y documentación de trabajo (no forman parte del proyecto)
 doc/
 src/xlsx/
 supabase/import-inventario.sql
 
-# Herramientas del andamiaje anterior (no se usan; el deploy es Vercel)
+# Herramientas locales
+.claude/
 .figma/
-
-# Platform-managed agentplat state, not project source. In the
-# client-initiated single-repo workspace layout (make's `Path: "."` spec) the
-# repo root IS the workspace root, so these land inside this repo rather than
-# beside it.
 /.plugins/
 /.opencode-skills/
