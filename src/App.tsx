@@ -139,7 +139,7 @@ export default function App() {
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-shell text-white transition-transform duration-200 sm:static sm:z-auto sm:w-52 sm:transition-all ${
+          className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-shell text-white transition-transform duration-200 sm:static sm:z-auto ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           } sm:translate-x-0 ${sidebarOpen ? "sm:w-52" : "sm:w-14"} overflow-hidden`}
         >
