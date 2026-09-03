@@ -3,8 +3,7 @@ import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { InventoryItem } from "../types";
 import { uploadProductImage } from "../utils/storage";
-import CategorySelect from "./CategorySelect";
-import UnidadInput from "./UnidadInput";
+import ComboBox from "./ComboBox";
 
 interface Props {
   product: InventoryItem | null;
@@ -12,7 +11,7 @@ interface Props {
 }
 
 export default function EditProductModal({ product, onClose }: Props) {
-  const { categories, updateProduct } = useStore();
+  const { categories, unidades, areas, updateProduct } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [codigo, setCodigo] = useState("");
@@ -140,7 +139,7 @@ export default function EditProductModal({ product, onClose }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad</label>
-              <UnidadInput value={unidadMedida} onChange={setUnidadMedida} />
+              <ComboBox value={unidadMedida} options={unidades} placeholder="UNID" uppercase onChange={setUnidadMedida} />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Costo (S/)</label>
@@ -185,24 +184,18 @@ export default function EditProductModal({ product, onClose }: Props) {
             {/* Área */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Área</label>
-              <select
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                className="input"
-              >
-                {AREAS.map((a) => (
-                  <option key={a}>{a}</option>
-                ))}
-              </select>
+              <ComboBox value={area} options={areas} placeholder="Almacén 1" onChange={setArea} />
             </div>
 
             {/* Categoría */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Categoría</label>
-              <CategorySelect
+              <ComboBox
                 id="edit-prod-categoria"
                 value={categoria}
-                onChange={(cat) => setCategoria(cat)}
+                options={categories}
+                placeholder="Atención y servicio"
+                onChange={setCategoria}
               />
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { Movement, InventoryItem } from "./types";
-import { DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "./types";
+import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "./types";
 import { supabase } from "./supabaseClient";
 import { useToast } from "./toast";
 
@@ -134,8 +134,8 @@ interface StoreCtx {
   inventory: InventoryItem[];
   categories: string[];
   unidades: string[];
+  areas: string[];
   nextCodigo: () => string;
-  addCategory: (category: string) => { success: boolean; message?: string };
   addMovement: (m: MovementInput) => string | null;
   updateMovement: (id: string, updated: MovementInput) => string | null;
   updateProduct: (oldCodigo: string, updated: ProductPatch) => void;
@@ -149,15 +149,14 @@ const Ctx = createContext<StoreCtx | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
 
-  const [categories, setCategories] = useState<string[]>(() => {
+  // Categorías guardadas (semilla + las que se crearon en versiones previas).
+  const [dbCategories, setDbCategories] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge with DEFAULT_CATEGORIES to ensure all defaults are always present
-          const unique = Array.from(new Set([...DEFAULT_CATEGORIES, ...parsed]));
-          return unique;
+          return Array.from(new Set([...DEFAULT_CATEGORIES, ...parsed]));
         }
       }
     } catch (e) {
@@ -184,11 +183,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(dbCategories));
     } catch (e) {
       console.error("Error saving categories to localStorage:", e);
     }
-  }, [categories]);
+  }, [dbCategories]);
 
   useEffect(() => {
     try {
@@ -219,7 +218,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         console.error("Error cargando categorías desde Supabase:", categoryResult.error);
         toast.error("No se pudieron cargar las categorías.");
       } else if (categoryResult.data?.length) {
-        setCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...categoryResult.data.map((row) => row.name)])));
+        setDbCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...categoryResult.data.map((row) => row.name)])));
       }
     }
 
@@ -228,15 +227,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
 
-  // Unidades de medida: las de por defecto + las que Rio ya haya escrito.
-  const unidades = Array.from(
-    new Set([
-      ...UNIDADES_MEDIDA,
-      ...movements
-        .map((m) => (m.unidadMedida || "").trim().toUpperCase())
-        .filter((u) => u !== ""),
-    ])
-  );
+  // Listas para los desplegables editables: valores por defecto + los que
+  // ya se hayan usado en algún movimiento. Al escribir uno nuevo y guardar,
+  // vuelve a aparecer aquí sin necesidad de una tabla aparte.
+  function usados(pick: (m: Movement) => string | undefined, up = false) {
+    return movements
+      .map((m) => {
+        const v = (pick(m) || "").trim();
+        return up ? v.toUpperCase() : v;
+      })
+      .filter((v) => v !== "");
+  }
+
+  const unidades = Array.from(new Set([...UNIDADES_MEDIDA, ...usados((m) => m.unidadMedida, true)]));
+  const areas = Array.from(new Set([...AREAS, ...usados((m) => m.area)]));
+  const categories = Array.from(new Set([...DEFAULT_CATEGORIES, ...dbCategories, ...usados((m) => m.categoria)]));
 
   // Siguiente código correlativo: máximo código numérico + 1.
   function nextCodigo(): string {
@@ -248,27 +253,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
     return String(max + 1);
-  }
-
-  function addCategory(categoryName: string): { success: boolean; message?: string } {
-    const trimmed = categoryName.trim();
-    if (!trimmed) {
-      return { success: false, message: "El nombre de la categoría no puede estar vacío." };
-    }
-    const exists = categories.some((c) => c.toLowerCase() === trimmed.toLowerCase());
-    if (exists) {
-      return { success: false, message: "Esta categoría ya existe." };
-    }
-    setCategories((prev) => [...prev, trimmed]);
-    if (supabase) {
-      void supabase.from("categories").insert({ name: trimmed }).then(({ error }) => {
-        if (error) {
-          console.error("Error guardando categoría en Supabase:", error);
-          toast.error(`No se pudo guardar la categoría "${trimmed}" en el servidor.`);
-        }
-      });
-    }
-    return { success: true };
   }
 
   function addMovement(m: MovementInput): string | null {
@@ -429,8 +413,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         inventory,
         categories,
         unidades,
+        areas,
         nextCodigo,
-        addCategory,
         addMovement,
         updateMovement,
         updateProduct,

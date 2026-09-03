@@ -3,8 +3,7 @@ import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES, MARGEN_PRECIO_VENTA } from "../types";
 import type { MovementType, InventoryItem } from "../types";
 import { uploadProductImage } from "../utils/storage";
-import CategorySelect from "./CategorySelect";
-import UnidadInput from "./UnidadInput";
+import ComboBox from "./ComboBox";
 
 const empty = (defaultCat?: string) => ({
   codigo: "",
@@ -29,7 +28,7 @@ function suggestPrecio(costo: string): string {
 }
 
 export default function MovementForm() {
-  const { movements, inventory, categories, addMovement, nextCodigo } = useStore();
+  const { movements, inventory, categories, unidades, areas, addMovement, nextCodigo } = useStore();
   const [form, setForm] = useState(() => empty(categories[0] || DEFAULT_CATEGORIES[0]));
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -628,9 +627,12 @@ export default function MovementForm() {
             <label htmlFor="unidadMedida" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Unidad de medida <span className="text-stone-400 font-normal lowercase">(elige o escribe otra)</span>
             </label>
-            <UnidadInput
+            <ComboBox
               id="unidadMedida"
               value={form.unidadMedida}
+              options={unidades}
+              placeholder="UNID"
+              uppercase
               onChange={(v) => {
                 setForm((f) => ({ ...f, unidadMedida: v }));
                 setError("");
@@ -755,32 +757,31 @@ export default function MovementForm() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           <div className="flex flex-col gap-1">
             <label htmlFor="area" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-              Área
+              Área <span className="text-stone-400 font-normal lowercase">(elige o escribe otra)</span>
             </label>
-            <select
+            <ComboBox
               id="area"
               value={form.area}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, area: e.target.value }));
+              options={areas}
+              placeholder="Almacén 1"
+              onChange={(v) => {
+                setForm((f) => ({ ...f, area: v }));
                 setError("");
               }}
-              className="input"
-            >
-              {AREAS.map((a) => (
-                <option key={a}>{a}</option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className="flex flex-col gap-1">
             <label htmlFor="categoria" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-              Categoría
+              Categoría <span className="text-stone-400 font-normal lowercase">(elige o escribe otra)</span>
             </label>
-            <CategorySelect
+            <ComboBox
               id="categoria"
               value={form.categoria}
-              onChange={(cat) => {
-                setForm((f) => ({ ...f, categoria: cat }));
+              options={categories}
+              placeholder="Atención y servicio"
+              onChange={(v) => {
+                setForm((f) => ({ ...f, categoria: v }));
                 setError("");
               }}
             />

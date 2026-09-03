@@ -3,8 +3,7 @@ import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { Movement, MovementType } from "../types";
 import { uploadProductImage } from "../utils/storage";
-import CategorySelect from "./CategorySelect";
-import UnidadInput from "./UnidadInput";
+import ComboBox from "./ComboBox";
 
 interface Props {
   movement: Movement | null;
@@ -12,7 +11,7 @@ interface Props {
 }
 
 export default function EditMovementModal({ movement, onClose }: Props) {
-  const { categories, updateMovement } = useStore();
+  const { categories, unidades, areas, updateMovement } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -191,8 +190,11 @@ export default function EditMovementModal({ movement, onClose }: Props) {
             {/* Unidad de medida */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad de medida</label>
-              <UnidadInput
+              <ComboBox
                 value={form.unidadMedida}
+                options={unidades}
+                placeholder="UNID"
+                uppercase
                 onChange={(v) => setForm({ ...form, unidadMedida: v })}
               />
             </div>
@@ -265,24 +267,23 @@ export default function EditMovementModal({ movement, onClose }: Props) {
             {/* Área */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Área</label>
-              <select
+              <ComboBox
                 value={form.area}
-                onChange={(e) => setForm({ ...form, area: e.target.value })}
-                className="input"
-              >
-                {AREAS.map((a) => (
-                  <option key={a}>{a}</option>
-                ))}
-              </select>
+                options={areas}
+                placeholder="Almacén 1"
+                onChange={(v) => setForm({ ...form, area: v })}
+              />
             </div>
 
             {/* Categoría */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Categoría</label>
-              <CategorySelect
+              <ComboBox
                 id="edit-mov-categoria"
                 value={form.categoria}
-                onChange={(cat) => setForm({ ...form, categoria: cat })}
+                options={categories}
+                placeholder="Atención y servicio"
+                onChange={(v) => setForm({ ...form, categoria: v })}
               />
             </div>
           </div>
