@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import type { Movement, InventoryItem } from "./types";
 import { DEFAULT_CATEGORIES } from "./types";
 import { supabase } from "./supabaseClient";
+import { useToast } from "./toast";
 
 const STORAGE_KEY = "SISTEMA_ALMACEN_MOVEMENTS_V1";
 const CATEGORIES_STORAGE_KEY = "SISTEMA_ALMACEN_CATEGORIES_V1";
@@ -94,6 +95,8 @@ interface StoreCtx {
 const Ctx = createContext<StoreCtx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const toast = useToast();
+
   const [categories, setCategories] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
@@ -141,28 +144,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabase) return;
+    const client = supabase;
 
     async function loadFromSupabase() {
       const [movementResult, categoryResult] = await Promise.all([
-        supabase.from("movements").select("*").order("fecha", { ascending: true }),
-        supabase.from("categories").select("name").order("name"),
+        client!.from("movements").select("*").order("fecha", { ascending: true }),
+        client!.from("categories").select("name").order("name"),
       ]);
 
       if (movementResult.error) {
         console.error("Error cargando movimientos desde Supabase:", movementResult.error);
+        toast.error("No se pudieron cargar los movimientos. Revisa tu conexión.");
       } else {
         setMovements((movementResult.data ?? []).map(movementFromRow));
       }
 
       if (categoryResult.error) {
         console.error("Error cargando categorías desde Supabase:", categoryResult.error);
+        toast.error("No se pudieron cargar las categorías.");
       } else if (categoryResult.data?.length) {
         setCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...categoryResult.data.map((row) => row.name)])));
       }
     }
 
     void loadFromSupabase();
-  }, []);
+  }, [toast]);
 
   const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
 
@@ -178,7 +184,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCategories((prev) => [...prev, trimmed]);
     if (supabase) {
       void supabase.from("categories").insert({ name: trimmed }).then(({ error }) => {
-        if (error) console.error("Error guardando categoría en Supabase:", error);
+        if (error) {
+          console.error("Error guardando categoría en Supabase:", error);
+          toast.error(`No se pudo guardar la categoría "${trimmed}" en el servidor.`);
+        }
       });
     }
     return { success: true };
@@ -199,7 +208,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMovements((prev) => [...prev, newM]);
     if (supabase) {
       void supabase.from("movements").insert(movementToRow(newM)).then(({ error }) => {
-        if (error) console.error("Error guardando movimiento en Supabase:", error);
+        if (error) {
+          console.error("Error guardando movimiento en Supabase:", error);
+          toast.error("El movimiento no se guardó en el servidor. Vuelve a intentarlo.");
+        } else {
+          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada.`);
+        }
       });
     }
     return null;
@@ -230,7 +244,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
     if (supabase) {
       void supabase.from("movements").upsert(movementToRow({ ...updated, id })).then(({ error }) => {
-        if (error) console.error("Error actualizando movimiento en Supabase:", error);
+        if (error) {
+          console.error("Error actualizando movimiento en Supabase:", error);
+          toast.error("El cambio no se guardó en el servidor. Vuelve a intentarlo.");
+        }
       });
     }
     return null;
@@ -260,7 +277,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         categoria: updated.categoria ?? null,
         imagen: updated.imagen ?? null,
       }).ilike("codigo", oldCodigo.trim()).then(({ error }) => {
-        if (error) console.error("Error actualizando producto en Supabase:", error);
+        if (error) {
+          console.error("Error actualizando producto en Supabase:", error);
+          toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
+        }
       });
     }
   }
@@ -269,7 +289,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMovements((prev) => prev.filter((m) => m.id !== id));
     if (supabase) {
       void supabase.from("movements").delete().eq("id", id).then(({ error }) => {
-        if (error) console.error("Error eliminando movimiento en Supabase:", error);
+        if (error) {
+          console.error("Error eliminando movimiento en Supabase:", error);
+          toast.error("El movimiento no se eliminó en el servidor.");
+        }
       });
     }
   }
@@ -279,7 +302,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMovements((prev) => prev.filter((m) => m.codigo.toUpperCase().trim() !== upper));
     if (supabase) {
       void supabase.from("movements").delete().ilike("codigo", upper).then(({ error }) => {
-        if (error) console.error("Error eliminando producto en Supabase:", error);
+        if (error) {
+          console.error("Error eliminando producto en Supabase:", error);
+          toast.error("El producto no se eliminó en el servidor.");
+        }
       });
     }
   }
@@ -288,7 +314,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMovements([]);
     if (supabase) {
       void supabase.from("movements").delete().neq("id", "").then(({ error }) => {
-        if (error) console.error("Error limpiando movimientos en Supabase:", error);
+        if (error) {
+          console.error("Error limpiando movimientos en Supabase:", error);
+          toast.error("No se pudo vaciar el almacén en el servidor.");
+        } else {
+          toast.success("Almacén vaciado.");
+        }
       });
     }
     try {
