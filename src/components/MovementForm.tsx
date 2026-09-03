@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { MovementType, InventoryItem } from "../types";
-import { processImageFile } from "../utils/image";
+import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
 
 const empty = (defaultCat?: string) => ({
@@ -171,8 +171,8 @@ export default function MovementForm() {
 
     try {
       setIsUploadingImage(true);
-      const base64 = await processImageFile(file);
-      setForm((prev) => ({ ...prev, imagen: base64 }));
+      const imagenUrl = await uploadProductImage(file);
+      setForm((prev) => ({ ...prev, imagen: imagenUrl }));
       setError("");
     } catch (err) {
       console.error(err);

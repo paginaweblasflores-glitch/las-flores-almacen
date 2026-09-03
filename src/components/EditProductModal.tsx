@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { InventoryItem } from "../types";
-import { processImageFile } from "../utils/image";
+import { uploadProductImage } from "../utils/storage";
 import CategorySelect from "./CategorySelect";
 
 interface Props {
@@ -46,8 +46,8 @@ export default function EditProductModal({ product, onClose }: Props) {
 
     try {
       setIsUploading(true);
-      const base64 = await processImageFile(file);
-      setImagen(base64);
+      const imagenUrl = await uploadProductImage(file);
+      setImagen(imagenUrl);
       setError("");
     } catch (err) {
       console.error(err);

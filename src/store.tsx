@@ -7,12 +7,18 @@ import { useToast } from "./toast";
 const STORAGE_KEY = "SISTEMA_ALMACEN_MOVEMENTS_V1";
 const CATEGORIES_STORAGE_KEY = "SISTEMA_ALMACEN_CATEGORIES_V1";
 
+function unitCost(m: Movement): number {
+  if (m.costo && m.costo > 0) return m.costo;
+  return m.cantidad > 0 ? m.valor / m.cantidad : m.valor;
+}
+
 function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
   const map = new Map<string, InventoryItem>();
   for (const m of movements) {
     const key = m.codigo.toUpperCase().trim();
     const existing = map.get(key);
-    const unitValue = m.cantidad > 0 ? m.valor / m.cantidad : m.valor;
+    const costo = unitCost(m);
+    const precioVenta = m.precioVenta && m.precioVenta > 0 ? m.precioVenta : costo;
     const categoria = m.categoria || DEFAULT_CATEGORIES[0];
 
     if (!existing) {
@@ -20,7 +26,10 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
         codigo: m.codigo,
         descripcion: m.descripcion,
         cantidadDisponible: m.tipo === "Entrada" ? m.cantidad : -m.cantidad,
-        valor: unitValue,
+        unidadMedida: m.unidadMedida,
+        costo,
+        precioVenta,
+        valor: costo,
         fechaActualizacion: m.fecha,
         responsable: m.responsable,
         area: m.area,
@@ -31,9 +40,14 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
       existing.cantidadDisponible += m.tipo === "Entrada" ? m.cantidad : -m.cantidad;
       existing.fechaActualizacion = m.fecha;
       existing.responsable = m.responsable;
-      existing.valor = unitValue;
+      existing.costo = costo;
+      existing.precioVenta = precioVenta;
+      existing.valor = costo;
       existing.area = m.area;
       existing.descripcion = m.descripcion;
+      if (m.unidadMedida) {
+        existing.unidadMedida = m.unidadMedida;
+      }
       if (m.categoria) {
         existing.categoria = m.categoria;
       }
@@ -46,12 +60,18 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
 }
 
 function movementFromRow(row: Record<string, unknown>): Movement {
+  const cantidad = Number(row.cantidad);
+  const valor = Number(row.valor);
+  const costo = row.costo != null ? Number(row.costo) : cantidad > 0 ? valor / cantidad : 0;
   return {
     id: String(row.id),
     codigo: String(row.codigo),
     descripcion: String(row.descripcion),
-    cantidad: Number(row.cantidad),
-    valor: Number(row.valor),
+    cantidad,
+    unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
+    costo,
+    precioVenta: row.precio_venta != null ? Number(row.precio_venta) : costo,
+    valor,
     fecha: String(row.fecha),
     responsable: String(row.responsable),
     area: String(row.area),
@@ -68,6 +88,9 @@ function movementToRow(movement: Movement) {
     codigo: movement.codigo,
     descripcion: movement.descripcion,
     cantidad: movement.cantidad,
+    unidad_medida: movement.unidadMedida ?? null,
+    costo: movement.costo ?? 0,
+    precio_venta: movement.precioVenta ?? 0,
     valor: movement.valor,
     fecha: movement.fecha,
     responsable: movement.responsable,
@@ -79,14 +102,34 @@ function movementToRow(movement: Movement) {
   };
 }
 
+interface ProductPatch {
+  codigo: string;
+  descripcion: string;
+  area: string;
+  categoria?: string;
+  unidadMedida?: string;
+  costo?: number;
+  precioVenta?: number;
+  imagen?: string;
+}
+
+// Al registrar/editar un movimiento, costo y precioVenta son opcionales:
+// si no llegan, el store los deriva del valor total y la cantidad.
+export type MovementInput = Omit<Movement, "id" | "costo" | "precioVenta" | "valor"> & {
+  costo?: number;
+  precioVenta?: number;
+  valor?: number;
+};
+
 interface StoreCtx {
   movements: Movement[];
   inventory: InventoryItem[];
   categories: string[];
+  nextCodigo: () => string;
   addCategory: (category: string) => { success: boolean; message?: string };
-  addMovement: (m: Omit<Movement, "id">) => string | null;
-  updateMovement: (id: string, updated: Omit<Movement, "id">) => string | null;
-  updateProduct: (oldCodigo: string, updated: { codigo: string; descripcion: string; area: string; categoria?: string; imagen?: string }) => void;
+  addMovement: (m: MovementInput) => string | null;
+  updateMovement: (id: string, updated: MovementInput) => string | null;
+  updateProduct: (oldCodigo: string, updated: ProductPatch) => void;
   deleteMovement: (id: string) => void;
   deleteProduct: (codigo: string) => void;
   clearAll: () => void;
@@ -115,6 +158,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   });
 
   const [movements, setMovements] = useState<Movement[]>(() => {
+    // Con Supabase configurado, la base es la fuente de verdad: se
+    // arranca vacío y se carga desde el servidor. localStorage solo
+    // sirve de respaldo offline cuando no hay Supabase.
+    if (supabase) return [];
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -172,6 +219,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
 
+  // Siguiente código correlativo: máximo código numérico + 1.
+  function nextCodigo(): string {
+    let max = 0;
+    for (const m of movements) {
+      const n = parseInt(m.codigo.trim(), 10);
+      if (!Number.isNaN(n) && String(n) === m.codigo.trim() && n > max) {
+        max = n;
+      }
+    }
+    return String(max + 1);
+  }
+
   function addCategory(categoryName: string): { success: boolean; message?: string } {
     const trimmed = categoryName.trim();
     if (!trimmed) {
@@ -193,17 +252,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }
 
-  function addMovement(m: Omit<Movement, "id">): string | null {
+  function addMovement(m: MovementInput): string | null {
     if (m.tipo === "Salida") {
       const item = buildInventory(movements).get(m.codigo.toUpperCase().trim());
       if (!item || item.cantidadDisponible < m.cantidad) {
         return `Stock insuficiente. Disponible: ${item?.cantidadDisponible ?? 0} unidades.`;
       }
     }
+    const costo = m.costo ?? (m.valor && m.cantidad > 0 ? m.valor / m.cantidad : 0);
     const newM: Movement = {
       ...m,
+      costo,
+      precioVenta: m.precioVenta ?? costo,
+      valor: m.valor ?? costo * m.cantidad,
       categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
     };
     setMovements((prev) => [...prev, newM]);
     if (supabase) {
@@ -219,11 +282,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return null;
   }
 
-  function updateMovement(id: string, updated: Omit<Movement, "id">): string | null {
+  function updateMovement(id: string, updated: MovementInput): string | null {
     // Check stock if updated is a Salida or changes quantities
     const otherMovements = movements.filter((m) => m.id !== id);
     const simulatedInventory = buildInventory(otherMovements);
-    
+
     if (updated.tipo === "Salida") {
       const available = simulatedInventory.get(updated.codigo.toUpperCase().trim())?.cantidadDisponible ?? 0;
       if (available < updated.cantidad) {
@@ -231,19 +294,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setMovements((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? {
-              ...updated,
-              categoria: updated.categoria || m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
-              id,
-            }
-          : m
-      )
-    );
+    const costo = updated.costo ?? (updated.valor && updated.cantidad > 0 ? updated.valor / updated.cantidad : 0);
+    const merged: Movement = {
+      ...updated,
+      costo,
+      precioVenta: updated.precioVenta ?? costo,
+      valor: updated.valor ?? costo * updated.cantidad,
+      categoria: updated.categoria || categories[0] || DEFAULT_CATEGORIES[0],
+      id,
+    };
+
+    setMovements((prev) => prev.map((m) => (m.id === id ? merged : m)));
     if (supabase) {
-      void supabase.from("movements").upsert(movementToRow({ ...updated, id })).then(({ error }) => {
+      void supabase.from("movements").upsert(movementToRow(merged)).then(({ error }) => {
         if (error) {
           console.error("Error actualizando movimiento en Supabase:", error);
           toast.error("El cambio no se guardó en el servidor. Vuelve a intentarlo.");
@@ -253,7 +316,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return null;
   }
 
-  function updateProduct(oldCodigo: string, updated: { codigo: string; descripcion: string; area: string; categoria?: string; imagen?: string }) {
+  function updateProduct(oldCodigo: string, updated: ProductPatch) {
     const oldUpper = oldCodigo.toUpperCase().trim();
     setMovements((prev) =>
       prev.map((m) =>
@@ -264,19 +327,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               descripcion: updated.descripcion.trim(),
               area: updated.area,
               categoria: updated.categoria || m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
+              unidadMedida: updated.unidadMedida !== undefined ? updated.unidadMedida : m.unidadMedida,
+              costo: updated.costo !== undefined ? updated.costo : m.costo,
+              precioVenta: updated.precioVenta !== undefined ? updated.precioVenta : m.precioVenta,
               imagen: updated.imagen !== undefined ? updated.imagen : m.imagen,
             }
           : m
       )
     );
     if (supabase) {
-      void supabase.from("movements").update({
+      const patch: Record<string, unknown> = {
         codigo: updated.codigo.toUpperCase().trim(),
         descripcion: updated.descripcion.trim(),
         area: updated.area,
         categoria: updated.categoria ?? null,
         imagen: updated.imagen ?? null,
-      }).ilike("codigo", oldCodigo.trim()).then(({ error }) => {
+      };
+      if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
+      if (updated.costo !== undefined) patch.costo = updated.costo;
+      if (updated.precioVenta !== undefined) patch.precio_venta = updated.precioVenta;
+      void supabase.from("movements").update(patch).ilike("codigo", oldCodigo.trim()).then(({ error }) => {
         if (error) {
           console.error("Error actualizando producto en Supabase:", error);
           toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
@@ -335,6 +405,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         movements,
         inventory,
         categories,
+        nextCodigo,
         addCategory,
         addMovement,
         updateMovement,

@@ -41,12 +41,40 @@ export const AREAS = [
 
 export type Area = (typeof AREAS)[number];
 
+export const UNIDADES_MEDIDA = [
+  "UNID",
+  "PAQ",
+  "CAJA",
+  "DOCENA",
+  "PAR",
+  "JUEGO",
+  "KG",
+  "GR",
+  "LT",
+  "ML",
+  "METRO",
+  "ROLLO",
+  "GALÓN",
+  "BALDE",
+  "BOLSA",
+] as const;
+
+export type UnidadMedida = (typeof UNIDADES_MEDIDA)[number];
+
+// Factor por defecto para sugerir el precio de venta a partir del costo.
+// El Excel de Rio usa costo ≈ precio × 0,7 (margen ≈ +42,86 %).
+// Rio puede sobrescribir el precio sugerido en el formulario.
+export const MARGEN_PRECIO_VENTA = 1 / 0.7;
+
 export interface Movement {
   id: string;
   codigo: string;
   descripcion: string;
   cantidad: number;
-  valor: number;
+  unidadMedida?: string;
+  costo: number;        // costo unitario
+  precioVenta: number;  // precio de venta unitario
+  valor: number;        // valor total del movimiento (cantidad × costo)
   fecha: string;
   responsable: string;
   area: string;
@@ -60,7 +88,10 @@ export interface InventoryItem {
   codigo: string;
   descripcion: string;
   cantidadDisponible: number;
-  valor: number;
+  unidadMedida?: string;
+  costo: number;        // costo unitario más reciente
+  precioVenta: number;  // precio de venta unitario más reciente
+  valor: number;        // alias de costo (compatibilidad)
   fechaActualizacion: string;
   responsable: string;
   area: string;

@@ -9,6 +9,9 @@ create table if not exists public.movements (
   codigo text not null,
   descripcion text not null,
   cantidad numeric not null check (cantidad > 0),
+  unidad_medida text,
+  costo numeric not null default 0,
+  precio_venta numeric not null default 0,
   valor numeric not null default 0,
   fecha date not null,
   responsable text not null,
@@ -48,3 +51,33 @@ values
   ('Tecnología y equipos'),
   ('Seguridad')
 on conflict (name) do nothing;
+
+-- ------------------------------------------------------------------
+-- Almacenamiento de imágenes de producto (Supabase Storage)
+-- ------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('productos', 'productos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "productos_public_read" on storage.objects;
+create policy "productos_public_read"
+  on storage.objects for select
+  using (bucket_id = 'productos');
+
+drop policy if exists "productos_auth_insert" on storage.objects;
+create policy "productos_auth_insert"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'productos');
+
+drop policy if exists "productos_auth_update" on storage.objects;
+create policy "productos_auth_update"
+  on storage.objects for update
+  to authenticated
+  using (bucket_id = 'productos');
+
+drop policy if exists "productos_auth_delete" on storage.objects;
+create policy "productos_auth_delete"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'productos');

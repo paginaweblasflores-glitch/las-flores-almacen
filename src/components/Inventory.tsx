@@ -9,7 +9,8 @@ export default function Inventory() {
   const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
   const [editingProduct, setEditingProduct] = useState<InventoryItem | null>(null);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
-  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [dangerOpen, setDangerOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState("");
 
   const filtered = inventory.filter((i) => {
     const matchSearch =
@@ -32,7 +33,8 @@ export default function Inventory() {
 
   function handleClearAll() {
     clearAll();
-    setConfirmClearAll(false);
+    setDangerOpen(false);
+    setClearConfirmText("");
   }
 
   return (
@@ -65,37 +67,6 @@ export default function Inventory() {
             placeholder="Buscar por código, nombre, área..."
             className="input w-full sm:w-64"
           />
-
-          {inventory.length > 0 && (
-            confirmClearAll ? (
-              <div className="flex items-center gap-1.5 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg">
-                <span className="text-xs text-brand-700 font-medium">¿Vaciar todo el almacén?</span>
-                <button
-                  onClick={handleClearAll}
-                  className="px-2 py-0.5 bg-brand-600 hover:bg-brand-700 text-white rounded text-xs font-semibold cursor-pointer"
-                >
-                  Sí, vaciar
-                </button>
-                <button
-                  onClick={() => setConfirmClearAll(false)}
-                  className="px-2 py-0.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded text-xs cursor-pointer"
-                >
-                  Cancelar
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmClearAll(true)}
-                className="px-3 py-2 border border-brand-200 text-brand-600 hover:bg-brand-50 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Eliminar todos los registros del almacén"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Vaciar Almacén
-              </button>
-            )
-          )}
         </div>
       </div>
 
@@ -108,9 +79,10 @@ export default function Inventory() {
                 <th className="text-left px-4 py-3">Producto</th>
                 <th className="text-left px-4 py-3">Categoría</th>
                 <th className="text-right px-4 py-3">Disponible</th>
-                <th className="text-right px-4 py-3">Valor unit.</th>
+                <th className="text-left px-4 py-3">Unidad</th>
+                <th className="text-right px-4 py-3">Costo unit.</th>
+                <th className="text-right px-4 py-3">P. venta</th>
                 <th className="text-left px-4 py-3">Actualizado</th>
-                <th className="text-left px-4 py-3">Responsable</th>
                 <th className="text-left px-4 py-3">Área</th>
                 <th className="text-center px-4 py-3">Acciones</th>
               </tr>
@@ -150,9 +122,10 @@ export default function Inventory() {
                       <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">bajo</span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-stone-600">S/ {item.valor.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-stone-500 text-xs">{item.unidadMedida || "—"}</td>
+                  <td className="px-4 py-3 text-right font-mono text-stone-600">S/ {item.costo.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono text-stone-800">S/ {item.precioVenta.toFixed(2)}</td>
                   <td className="px-4 py-3 text-stone-500">{item.fechaActualizacion.split("-").reverse().join("/")}</td>
-                  <td className="px-4 py-3 text-stone-600">{item.responsable}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{item.area}</span>
                   </td>
@@ -200,12 +173,65 @@ export default function Inventory() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-stone-400 text-sm">No se encontraron productos.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-stone-400 text-sm">No se encontraron productos.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Zona de peligro — vaciar almacén */}
+      {inventory.length > 0 && (
+        <div className="mt-2 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
+          {!dangerOpen ? (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold text-brand-800">Vaciar todo el almacén</p>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Borra los {inventory.length} productos y todos sus movimientos. No se puede deshacer.
+                </p>
+              </div>
+              <button
+                onClick={() => setDangerOpen(true)}
+                className="px-3 py-2 border border-brand-300 text-brand-700 hover:bg-brand-100 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Vaciar almacén…
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              <p className="text-sm font-semibold text-brand-800">
+                Escribe <span className="font-mono bg-white border border-brand-200 px-1.5 py-0.5 rounded">VACIAR</span> para confirmar
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  autoFocus
+                  value={clearConfirmText}
+                  onChange={(e) => setClearConfirmText(e.target.value)}
+                  placeholder="VACIAR"
+                  className="input w-40 font-mono uppercase"
+                />
+                <button
+                  onClick={handleClearAll}
+                  disabled={clearConfirmText.trim().toUpperCase() !== "VACIAR"}
+                  className="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Vaciar definitivamente
+                </button>
+                <button
+                  onClick={() => {
+                    setDangerOpen(false);
+                    setClearConfirmText("");
+                  }}
+                  className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Edit Product Modal */}
       <EditProductModal
@@ -215,4 +241,3 @@ export default function Inventory() {
     </div>
   );
 }
-

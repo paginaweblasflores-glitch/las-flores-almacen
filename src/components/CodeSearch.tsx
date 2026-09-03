@@ -132,12 +132,19 @@ export default function CodeSearch() {
                   <span className={`text-2xl font-bold ${item.cantidadDisponible <= 0 ? "text-brand-600" : "text-stone-900"}`}>
                     {item.cantidadDisponible}
                   </span>
-                  <span className="text-xs text-stone-400 uppercase tracking-wide">disponible</span>
+                  <span className="text-xs text-stone-400 uppercase tracking-wide">
+                    disponible{item.unidadMedida ? ` · ${item.unidadMedida}` : ""}
+                  </span>
                 </div>
                 <div className="w-px bg-stone-100" />
                 <div className="flex flex-col">
-                  <span className="text-2xl font-bold text-stone-700">S/ {item.valor.toFixed(2)}</span>
-                  <span className="text-xs text-stone-400 uppercase tracking-wide">valor unit.</span>
+                  <span className="text-2xl font-bold text-stone-700">S/ {item.costo.toFixed(2)}</span>
+                  <span className="text-xs text-stone-400 uppercase tracking-wide">costo unit.</span>
+                </div>
+                <div className="w-px bg-stone-100" />
+                <div className="flex flex-col">
+                  <span className="text-2xl font-bold text-leaf-700">S/ {item.precioVenta.toFixed(2)}</span>
+                  <span className="text-xs text-stone-400 uppercase tracking-wide">precio venta</span>
                 </div>
               </div>
             </div>

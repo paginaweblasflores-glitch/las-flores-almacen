@@ -34,16 +34,20 @@ for (const row of rows) {
   const descripcion = String(row.DESCRIPCION).trim();
   const entradas = Number(row.ENTRADAS || 0);
   const salidas = Number(row.SALIDAS || 0);
+  const unidad = row["UNI. MEDIDAD"] ? String(row["UNI. MEDIDAD"]).trim() : null;
   const base = {
     codigo,
     descripcion,
+    unidad_medida: unidad,
+    costo: 0,
+    precio_venta: 0,
     valor: 0,
     fecha: importedAt,
     responsable: "Importación almacen.xlsx",
     area: "Almacén 1",
     categoria: "Atención y servicio",
     imagen: row["IMAGEN REF."] ? String(row["IMAGEN REF."]) : null,
-    motivo: `Importación de almacen.xlsx (${row["UNI. MEDIDAD"] || "sin unidad"})`,
+    motivo: "Importación de almacen.xlsx",
   };
 
   if (entradas > 0) movements.push({ ...base, id: `xlsx-${codigo}-entrada`, cantidad: entradas, tipo: "Entrada" });
