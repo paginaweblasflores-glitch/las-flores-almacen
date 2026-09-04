@@ -27,6 +27,17 @@ function suggestPrecio(costo: string): string {
   return n > 0 ? (n * MARGEN_PRECIO_VENTA).toFixed(2) : "";
 }
 
+interface SalidaTicket {
+  codigo: string;
+  descripcion: string;
+  cantidad: number;
+  unidadMedida: string;
+  area: string;
+  categoria: string;
+  fecha: string;
+  responsable: string;
+}
+
 export default function MovementForm() {
   const { movements, inventory, categories, unidades, areas, addMovement, nextCodigo } = useStore();
   const [form, setForm] = useState(() => empty(categories[0] || DEFAULT_CATEGORIES[0]));
@@ -35,6 +46,16 @@ export default function MovementForm() {
   const [autoCodigo, setAutoCodigo] = useState(true);
   const [precioTouched, setPrecioTouched] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [ticket, setTicket] = useState<SalidaTicket | null>(null);
+
+  // Imprime el comprobante de salida (tiquetera) apenas se registra la salida
+  useEffect(() => {
+    if (!ticket) return;
+    window.print();
+    const handleAfterPrint = () => setTicket(null);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, [ticket]);
 
   // Suggestions state
   const [showCodeSuggestions, setShowCodeSuggestions] = useState(false);
@@ -80,10 +101,10 @@ export default function MovementForm() {
       area: item.area || prev.area,
       categoria: item.categoria || prev.categoria || categories[0] || DEFAULT_CATEGORIES[0],
       unidadMedida: item.unidadMedida || prev.unidadMedida,
-      costo: item.costo ? item.costo.toFixed(2) : prev.costo,
-      precioVenta: item.precioVenta ? item.precioVenta.toFixed(2) : prev.precioVenta,
+      costo: item.costo != null ? item.costo.toFixed(2) : prev.costo,
+      precioVenta: item.precioVenta != null ? item.precioVenta.toFixed(2) : prev.precioVenta,
       stockMinimo: item.stockMinimo ? String(item.stockMinimo) : prev.stockMinimo,
-      responsable: prev.responsable || item.responsable || "",
+      responsable: prev.responsable,
       imagen: item.imagen || prev.imagen || "",
     };
   }
@@ -220,8 +241,15 @@ export default function MovementForm() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.codigo || !form.descripcion || !form.cantidad || !form.costo || !form.fecha || !form.responsable) {
-      setError("Completa código, descripción, cantidad, costo, fecha y responsable.");
+    const faltantes: string[] = [];
+    if (!form.codigo) faltantes.push("código");
+    if (!form.descripcion) faltantes.push("descripción");
+    if (!form.cantidad) faltantes.push("cantidad");
+    if (form.tipo === "Entrada" && !form.costo) faltantes.push("costo");
+    if (!form.fecha) faltantes.push("fecha");
+    if (!form.responsable) faltantes.push("responsable");
+    if (faltantes.length > 0) {
+      setError(`Falta completar: ${faltantes.join(", ")}.`);
       return;
     }
 
@@ -269,6 +297,18 @@ export default function MovementForm() {
       setError(err);
     } else {
       setSuccess(`${form.tipo} de "${form.descripcion}" registrada correctamente.`);
+      if (form.tipo === "Salida") {
+        setTicket({
+          codigo: form.codigo.toUpperCase().trim(),
+          descripcion: form.descripcion.trim(),
+          cantidad: qty,
+          unidadMedida: form.unidadMedida,
+          area: form.area,
+          categoria: form.categoria,
+          fecha: form.fecha,
+          responsable: form.responsable.trim(),
+        });
+      }
       resetForm();
     }
   }
@@ -301,7 +341,8 @@ export default function MovementForm() {
   const totalMovimiento = (Number(form.costo) || 0) * (Number(form.cantidad) || 0);
 
   return (
-    <div className="bg-white border border-stone-200 rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs">
+    <>
+    <div className="no-print bg-white border border-stone-200 rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs">
       <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-3">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-brand-500" />
@@ -655,8 +696,12 @@ export default function MovementForm() {
             label="Costo unitario (S/)"
             id="costo"
             action={
-              matchedItem && (
-                <span className="text-[11px] text-stone-400">Ref: S/ {matchedItem.costo.toFixed(2)}</span>
+              form.tipo === "Salida" ? (
+                <span className="text-[11px] text-stone-400">Automático del producto</span>
+              ) : (
+                matchedItem && (
+                  <span className="text-[11px] text-stone-400">Ref: S/ {matchedItem.costo.toFixed(2)}</span>
+                )
               )
             }
           >
@@ -668,7 +713,8 @@ export default function MovementForm() {
               value={form.costo}
               onChange={(e) => handleCostoChange(e.target.value)}
               placeholder="0.00"
-              className="input font-mono"
+              readOnly={form.tipo === "Salida"}
+              className={`input font-mono ${form.tipo === "Salida" ? "bg-stone-100 text-stone-500 cursor-not-allowed" : ""}`}
             />
           </Field>
 
@@ -958,6 +1004,60 @@ export default function MovementForm() {
         </div>
       </form>
     </div>
+
+    {/* Comprobante de salida (solo impresión — tiquetera) */}
+    {ticket && (
+        <div className="print-only">
+          <div className="mx-auto text-stone-900" style={{ width: "72mm" }}>
+            <div className="flex flex-col items-center text-center gap-1 pb-2 border-b-2 border-stone-900">
+              <img src="/logo.png" alt="Las Flores" className="w-14 h-14 object-contain" />
+              <p className="font-serif font-bold text-base leading-tight">Restaurante Las Flores</p>
+              <p className="text-[10px] uppercase tracking-wider text-stone-600">
+                Comprobante de salida de almacén
+              </p>
+            </div>
+
+            <div className="py-2 flex flex-col gap-1 text-[11px] border-b border-dashed border-stone-400">
+              <div className="flex justify-between gap-2">
+                <span className="text-stone-500">Fecha</span>
+                <span className="font-semibold">{ticket.fecha.split("-").reverse().join("/")}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-stone-500">Código</span>
+                <span className="font-semibold">{ticket.codigo}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-stone-500 flex-shrink-0">Producto</span>
+                <span className="font-semibold text-right">{ticket.descripcion}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-stone-500">Cantidad</span>
+                <span className="font-semibold">
+                  {ticket.cantidad} {ticket.unidadMedida}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-stone-500">Área</span>
+                <span className="font-semibold">{ticket.area}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-stone-500">Categoría</span>
+                <span className="font-semibold">{ticket.categoria}</span>
+              </div>
+            </div>
+
+            <div className="pt-10 flex flex-col items-center gap-1 text-[11px]">
+              <div className="w-full border-t border-stone-900" />
+              <p className="font-semibold">{ticket.responsable}</p>
+            </div>
+
+            <p className="text-center text-[9px] text-stone-400 mt-4 pt-2 border-t border-dashed border-stone-400">
+              Sistema Almacén · Restaurante Las Flores
+            </p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

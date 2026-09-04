@@ -114,12 +114,12 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Impresión / Descargar PDF (módulo Inicio)                         */
+/*  Impresión — comprobante de salida (tiquetera térmica 80mm)        */
 /* ------------------------------------------------------------------ */
 .print-only { display: none; }
 
 @media print {
-  @page { margin: 1.4cm; }
+  @page { size: 80mm auto; margin: 3mm; }
 
   aside,
   .no-print { display: none !important; }
@@ -135,9 +135,6 @@ body {
   main > div { max-width: none !important; padding: 0 !important; }
 
   .report-section { break-inside: avoid; }
-
-  /* Recharts necesita un ancho fijo al imprimir */
-  .recharts-responsive-container { width: 100% !important; min-width: 640px; }
 
   *, *::before, *::after {
     box-shadow: none !important;

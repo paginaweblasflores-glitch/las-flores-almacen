@@ -16,7 +16,7 @@ export default function Registrar() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
+      <div className="no-print">
         <h1 className="text-2xl font-bold text-stone-900">Registrar movimiento</h1>
         <p className="text-sm text-stone-400 mt-0.5">Registra entradas y salidas de productos del almacén</p>
       </div>
@@ -25,7 +25,7 @@ export default function Registrar() {
       <MovementForm />
 
       {/* Recent movements table */}
-      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
+      <div className="no-print bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
         <div className="px-5 py-3.5 border-b border-stone-100 flex items-center justify-between">
           <h2 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Últimos movimientos</h2>
           <span className="text-xs text-stone-400">Mostrando los últimos 8 registros</span>
