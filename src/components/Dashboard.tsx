@@ -522,7 +522,12 @@ export default function Dashboard() {
       {/* Por reponer */}
       <SectionCard title="Productos por reponer (bajo el mínimo)">
         {porReponer.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-stone-400">✅ Ningún producto por debajo de su stock mínimo.</p>
+          <p className="px-5 py-4 text-sm text-stone-400 flex items-center gap-1.5">
+            <svg className="w-4 h-4 text-leaf-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Ningún producto por debajo de su stock mínimo.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -556,7 +561,12 @@ export default function Dashboard() {
       {/* Sin stock */}
       <SectionCard title="Productos sin stock">
         {sinStock.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-stone-400">✅ Todos los productos tienen stock disponible.</p>
+          <p className="px-5 py-4 text-sm text-stone-400 flex items-center gap-1.5">
+            <svg className="w-4 h-4 text-leaf-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Todos los productos tienen stock disponible.
+          </p>
         ) : (
           <div className="px-5 py-4 flex flex-wrap gap-2">
             {sinStock.map((i) => (
