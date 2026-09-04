@@ -51,27 +51,27 @@ export default function Login({ onLogin }: LoginProps) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-10"
+      className="h-dvh overflow-hidden flex items-center justify-center px-4 py-4"
       style={{
         background:
           "radial-gradient(circle at top, rgba(255,255,255,0.12), transparent 32%), linear-gradient(135deg, #4b0811 0%, #7b0d1e 35%, #a6102d 100%)",
       }}
     >
       <div className="w-full max-w-md">
-        <div className="bg-surface rounded-3xl shadow-xl ring-1 ring-line/70 px-8 py-9 sm:px-10">
+        <div className="bg-surface rounded-3xl shadow-xl ring-1 ring-line/70 px-8 py-6 sm:px-10">
           {/* Logo */}
           <div className="flex justify-center">
-            <div className="rounded-full border border-brand-200 p-2.5">
+            <div className="rounded-full border border-brand-200 p-2">
               <img
                 src="/logo.png"
                 alt="Consorcio Las Flores"
-                className="w-16 h-16 object-contain"
+                className="w-12 h-12 object-contain"
               />
             </div>
           </div>
 
           {/* Título */}
-          <div className="text-center mt-4 mb-7">
+          <div className="text-center mt-3 mb-5">
             <h1 className="font-serif text-2xl font-bold text-brand-600 tracking-tight">
               Sistema Almacén
             </h1>
@@ -186,7 +186,7 @@ export default function Login({ onLogin }: LoginProps) {
             </button>
           </form>
 
-          <p className="text-center text-[11px] text-muted mt-7">
+          <p className="text-center text-[11px] text-muted mt-5">
             Sistema Almacén · Restaurante Las Flores © 2026
           </p>
         </div>
