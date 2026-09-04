@@ -50,6 +50,17 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
+async function loadImageAsDataURL(url: string): Promise<string> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function Dashboard() {
   const { movements, inventory, categories } = useStore();
   const now = new Date();
@@ -145,19 +156,34 @@ export default function Dashboard() {
     .sort((a, b) => b.valorStock - a.valorStock)
     .slice(0, 10);
 
-  function descargarPdf() {
+  async function descargarPdf() {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
     const generatedAt = now.toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" });
 
-    doc.setFontSize(16);
-    doc.setTextColor(45, 45, 45);
-    doc.text("Reporte de Almacen - Restaurante Las Flores", 14, 18);
+    // ---- Encabezado de marca ----
+    doc.setFillColor(200, 55, 42);
+    doc.rect(0, 0, pageWidth, 26, "F");
+
+    const logoDataUrl = await loadImageAsDataURL("/logo.png").catch(() => null);
+    if (logoDataUrl) {
+      doc.setFillColor(255, 255, 255);
+      doc.circle(18, 13, 8.5, "F");
+      doc.addImage(logoDataUrl, "PNG", 11, 6, 14, 14);
+    }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text("Reporte de Almacén", 32, 12);
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.setTextColor(110, 105, 100);
-    doc.text(`Generado el ${generatedAt}`, 14, 25);
+    doc.text("Restaurante Las Flores", 32, 18);
+    doc.setFontSize(7.5);
+    doc.text(`Generado el ${generatedAt}`, 32, 23);
 
     autoTable(doc, {
-      startY: 32,
+      startY: 33,
       head: [["Indicador", "Valor", "Detalle"]],
       body: [
         ["Productos", String(totalProductos), "registrados"],
@@ -229,6 +255,31 @@ export default function Dashboard() {
         styles: { fontSize: 8 },
         margin: { top: 14 },
       });
+    }
+
+    if (sinStock.length > 0) {
+      autoTable(doc, {
+        head: [["Codigo", "Producto", "Area"]],
+        body: sinStock.map((i) => [i.codigo, i.descripcion, i.area]),
+        theme: "grid",
+        headStyles: { fillColor: [200, 55, 42] },
+        styles: { fontSize: 8 },
+        margin: { top: 14 },
+      });
+    }
+
+    // ---- Pie de página con numeración ----
+    const pageCount = doc.getNumberOfPages();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(230, 225, 219);
+      doc.line(14, pageHeight - 12, pageWidth - 14, pageHeight - 12);
+      doc.setFontSize(7.5);
+      doc.setTextColor(139, 130, 121);
+      doc.setFont("helvetica", "normal");
+      doc.text("Sistema Almacén · Restaurante Las Flores", 14, pageHeight - 7);
+      doc.text(`Página ${p} de ${pageCount}`, pageWidth - 14, pageHeight - 7, { align: "right" });
     }
 
     doc.save(`reporte_almacen_${today}.pdf`);
