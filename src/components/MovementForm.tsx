@@ -722,7 +722,9 @@ export default function MovementForm() {
             label="Precio de venta (S/)"
             id="precioVenta"
             action={
-              !precioTouched && form.precioVenta ? (
+              form.tipo === "Salida" ? (
+                <span className="text-[11px] text-stone-400">Automático del producto</span>
+              ) : !precioTouched && form.precioVenta ? (
                 <span className="text-[11px] text-stone-400">sugerido</span>
               ) : null
             }
@@ -736,9 +738,16 @@ export default function MovementForm() {
                 value={form.precioVenta}
                 onChange={(e) => handlePrecioVentaChange(e.target.value)}
                 placeholder="0.00"
-                className={`input font-mono ${!precioTouched && form.precioVenta ? "text-stone-500" : ""}`}
+                readOnly={form.tipo === "Salida"}
+                className={`input font-mono ${
+                  form.tipo === "Salida"
+                    ? "bg-stone-100 text-stone-500 cursor-not-allowed"
+                    : !precioTouched && form.precioVenta
+                    ? "text-stone-500"
+                    : ""
+                }`}
               />
-              {precioTouched && form.costo && (
+              {form.tipo === "Entrada" && precioTouched && form.costo && (
                 <button
                   type="button"
                   onClick={() => {
