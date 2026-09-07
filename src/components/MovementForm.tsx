@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../store";
-import { AREAS, DEFAULT_CATEGORIES, MARGEN_PRECIO_VENTA } from "../types";
+import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { MovementType, InventoryItem } from "../types";
 import { uploadProductImage } from "../utils/storage";
 import ComboBox from "./ComboBox";
@@ -12,7 +12,6 @@ const empty = (defaultCat?: string) => ({
   cantidad: "",
   unidadMedida: "UNID" as string,
   costo: "",
-  precioVenta: "",
   stockMinimo: "",
   fecha: new Date().toISOString().split("T")[0],
   responsable: "",
@@ -22,11 +21,6 @@ const empty = (defaultCat?: string) => ({
   imagen: "",
   motivo: "",
 });
-
-function suggestPrecio(costo: string): string {
-  const n = Number(costo);
-  return n > 0 ? (n * MARGEN_PRECIO_VENTA).toFixed(2) : "";
-}
 
 interface SalidaTicket {
   codigo: string;
@@ -45,7 +39,6 @@ export default function MovementForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [autoCodigo, setAutoCodigo] = useState(true);
-  const [precioTouched, setPrecioTouched] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [ticket, setTicket] = useState<SalidaTicket | null>(null);
 
@@ -103,7 +96,6 @@ export default function MovementForm() {
       categoria: item.categoria || prev.categoria || categories[0] || DEFAULT_CATEGORIES[0],
       unidadMedida: item.unidadMedida || prev.unidadMedida,
       costo: item.costo != null ? item.costo.toFixed(2) : prev.costo,
-      precioVenta: item.precioVenta != null ? item.precioVenta.toFixed(2) : prev.precioVenta,
       stockMinimo: item.stockMinimo ? String(item.stockMinimo) : prev.stockMinimo,
       responsable: prev.responsable,
       imagen: item.imagen || prev.imagen || "",
@@ -112,7 +104,6 @@ export default function MovementForm() {
 
   function selectProduct(item: InventoryItem) {
     setAutoCodigo(false);
-    setPrecioTouched(true);
     setForm((prev) => fillFromItem(prev, item));
     setShowCodeSuggestions(false);
     setShowDescSuggestions(false);
@@ -128,7 +119,6 @@ export default function MovementForm() {
 
     const found = inventory.find((i) => i.codigo.toUpperCase() === upperVal.trim());
     if (found) {
-      setPrecioTouched(true);
       setForm((prev) => ({ ...fillFromItem(prev, found), codigo: upperVal }));
     } else {
       setForm((prev) => ({ ...prev, codigo: upperVal }));
@@ -143,7 +133,6 @@ export default function MovementForm() {
     const found = inventory.find((i) => i.descripcion.toLowerCase() === value.toLowerCase().trim());
     if (found) {
       setAutoCodigo(false);
-      setPrecioTouched(true);
       setForm((prev) => ({ ...fillFromItem(prev, found), descripcion: value }));
     } else {
       setForm((prev) => ({ ...prev, descripcion: value }));
@@ -158,18 +147,7 @@ export default function MovementForm() {
   }
 
   function handleCostoChange(value: string) {
-    setForm((prev) => ({
-      ...prev,
-      costo: value,
-      precioVenta: precioTouched ? prev.precioVenta : suggestPrecio(value),
-    }));
-    setError("");
-    setSuccess("");
-  }
-
-  function handlePrecioVentaChange(value: string) {
-    setPrecioTouched(true);
-    setForm((prev) => ({ ...prev, precioVenta: value }));
+    setForm((prev) => ({ ...prev, costo: value }));
     setError("");
     setSuccess("");
   }
@@ -217,13 +195,11 @@ export default function MovementForm() {
       descripcion: "",
       cantidad: "",
       costo: "",
-      precioVenta: "",
       stockMinimo: "",
       imagen: "",
       motivo: "",
     }));
     setAutoCodigo(true);
-    setPrecioTouched(false);
     setError("");
     setSuccess("");
     if (fileInputRef.current) {
@@ -234,7 +210,6 @@ export default function MovementForm() {
   function resetForm() {
     setForm(empty(categories[0] || DEFAULT_CATEGORIES[0]));
     setAutoCodigo(true);
-    setPrecioTouched(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -266,12 +241,6 @@ export default function MovementForm() {
       return;
     }
 
-    const precioVenta = form.precioVenta ? Number(form.precioVenta) : costo;
-    if (isNaN(precioVenta) || precioVenta < 0) {
-      setError("El precio de venta debe ser un número válido mayor o igual a 0.");
-      return;
-    }
-
     if (form.tipo === "Salida" && matchedItem && qty > matchedItem.cantidadDisponible) {
       setError(`Stock insuficiente. Disponible: ${matchedItem.cantidadDisponible} unidades.`);
       return;
@@ -283,7 +252,6 @@ export default function MovementForm() {
       cantidad: qty,
       unidadMedida: form.unidadMedida,
       costo,
-      precioVenta,
       stockMinimo: form.stockMinimo === "" ? undefined : Number(form.stockMinimo),
       fecha: form.fecha,
       responsable: form.responsable.trim(),
@@ -338,8 +306,6 @@ export default function MovementForm() {
     form.tipo === "Salida" &&
     matchedItem &&
     matchedItem.cantidadDisponible <= 0;
-
-  const totalMovimiento = (Number(form.costo) || 0) * (Number(form.cantidad) || 0);
 
   return (
     <>
@@ -414,10 +380,6 @@ export default function MovementForm() {
                 <span className="text-stone-300">•</span>
                 <span>
                   Costo ref: <strong className="text-stone-800">S/ {matchedItem.costo.toFixed(2)}</strong>
-                </span>
-                <span className="text-stone-300">•</span>
-                <span>
-                  Venta: <strong className="text-leaf-700">S/ {matchedItem.precioVenta.toFixed(2)}</strong>
                 </span>
               </div>
             </div>
@@ -692,7 +654,7 @@ export default function MovementForm() {
             />
           </div>
 
-          {/* Row 3: Costo & Precio de venta */}
+          {/* Row 3: Costo */}
           <Field
             label="Costo unitario (S/)"
             id="costo"
@@ -718,57 +680,6 @@ export default function MovementForm() {
               className={`input font-mono ${form.tipo === "Salida" ? "bg-stone-100 text-stone-500 cursor-not-allowed" : ""}`}
             />
           </Field>
-
-          <Field
-            label="Precio de venta (S/)"
-            id="precioVenta"
-            action={
-              form.tipo === "Salida" ? (
-                <span className="text-[11px] text-stone-400">Automático del producto</span>
-              ) : !precioTouched && form.precioVenta ? (
-                <span className="text-[11px] text-stone-400">sugerido</span>
-              ) : null
-            }
-          >
-            <div className="relative">
-              <input
-                id="precioVenta"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.precioVenta}
-                onChange={(e) => handlePrecioVentaChange(e.target.value)}
-                placeholder="0.00"
-                readOnly={form.tipo === "Salida"}
-                className={`input font-mono ${
-                  form.tipo === "Salida"
-                    ? "bg-stone-100 text-stone-500 cursor-not-allowed"
-                    : !precioTouched && form.precioVenta
-                    ? "text-stone-500"
-                    : ""
-                }`}
-              />
-              {form.tipo === "Entrada" && precioTouched && form.costo && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPrecioTouched(false);
-                    setForm((prev) => ({ ...prev, precioVenta: suggestPrecio(prev.costo) }));
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-brand-600 hover:text-brand-800 bg-brand-50 px-1.5 py-0.5 rounded font-medium cursor-pointer"
-                  title="Volver al precio sugerido por margen"
-                >
-                  Sugerido
-                </button>
-              )}
-            </div>
-          </Field>
-        </div>
-
-        {/* Total del movimiento */}
-        <div className="flex items-center justify-end gap-2 text-xs text-stone-500 -mt-1">
-          <span>Total del movimiento ({form.cantidad || 0} × S/ {Number(form.costo || 0).toFixed(2)}):</span>
-          <strong className="font-mono text-sm text-stone-800">S/ {totalMovimiento.toFixed(2)}</strong>
         </div>
 
         {/* Stock mínimo · Fecha · Responsable · Área · Categoría */}

@@ -61,11 +61,6 @@ export const UNIDADES_MEDIDA = [
 
 export type UnidadMedida = (typeof UNIDADES_MEDIDA)[number];
 
-// Factor por defecto para sugerir el precio de venta a partir del costo.
-// El Excel de Rio usa costo ≈ precio × 0,7 (margen ≈ +42,86 %).
-// Rio puede sobrescribir el precio sugerido en el formulario.
-export const MARGEN_PRECIO_VENTA = 1 / 0.7;
-
 // Avisos escalonados según la cantidad total de movimientos guardados.
 // Ajusta los límites aquí si hace falta; deben ir de menor a mayor.
 export type NivelAviso = "info" | "warn" | "error";
@@ -113,7 +108,6 @@ export interface Movement {
   cantidad: number;
   unidadMedida?: string;
   costo: number;        // costo unitario
-  precioVenta: number;  // precio de venta unitario
   stockMinimo: number;  // punto de reorden del producto
   valor: number;        // valor total del movimiento (cantidad × costo)
   fecha: string;
@@ -131,7 +125,6 @@ export interface InventoryItem {
   cantidadDisponible: number;
   unidadMedida?: string;
   costo: number;        // costo unitario más reciente
-  precioVenta: number;  // precio de venta unitario más reciente
   stockMinimo: number;  // punto de reorden
   valor: number;        // alias de costo (compatibilidad)
   fechaActualizacion: string;

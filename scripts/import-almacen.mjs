@@ -82,7 +82,6 @@ entradasRows.forEach((row, i) => {
     cantidad,
     unidad_medida: row["UNI. MEDIDAD"] ? String(row["UNI. MEDIDAD"]).trim() : null,
     costo,
-    precio_venta: num(row["PRECIO VENTA"]),
     stock_minimo: 0,
     valor: costo * cantidad,
     fecha: excelSerialToISO(row.FECHA),
@@ -112,7 +111,6 @@ salidasRows.forEach((row, i) => {
     cantidad,
     unidad_medida: row["UNI. MEDIDAD"] ? String(row["UNI. MEDIDAD"]).trim() : null,
     costo,
-    precio_venta: num(row["PRECIO VENTA"]),
     stock_minimo: 0,
     valor: costo * cantidad,
     fecha: excelSerialToISO(row.FECHA),
@@ -146,12 +144,12 @@ if (SQL_OUT) {
   const q = (v) => (v == null ? "NULL" : `'${String(v).replace(/'/g, "''")}'`);
   const n = (v) => Number(v || 0);
   const cols =
-    "id, codigo, descripcion, cantidad, unidad_medida, costo, precio_venta, stock_minimo, valor, fecha, responsable, area, categoria, tipo, motivo";
+    "id, codigo, descripcion, cantidad, unidad_medida, costo, stock_minimo, valor, fecha, responsable, area, categoria, tipo, motivo";
   const values = movements
     .map(
       (m) =>
         `  (${q(m.id)}, ${q(m.codigo)}, ${q(m.descripcion)}, ${n(m.cantidad)}, ${q(m.unidad_medida)}, ` +
-        `${n(m.costo)}, ${n(m.precio_venta)}, ${n(m.stock_minimo)}, ${n(m.valor)}, ${q(m.fecha)}, ` +
+        `${n(m.costo)}, ${n(m.stock_minimo)}, ${n(m.valor)}, ${q(m.fecha)}, ` +
         `${q(m.responsable)}, ${q(m.area)}, ${q(m.categoria)}, ${q(m.tipo)}, ${q(m.motivo)})`
     )
     .join(",\n");

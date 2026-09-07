@@ -2,9 +2,9 @@
 
 Aplicación web de control de inventario para el almacén de **Restaurante Las Flores**.
 
-- Registro de **entradas y salidas** con validación de stock
+- Registro de **entradas y salidas** con validación de stock (varios productos por comprobante)
 - **Inventario** en tiempo real (stock calculado a partir de los movimientos)
-- **Costo**, **precio de venta** (sugerido por margen), **unidad de medida** y **stock mínimo** por producto
+- **Costo**, **unidad de medida** y **stock mínimo** por producto
 - **Foto** por producto (Supabase Storage)
 - Buscador por código, consulta por rango de fechas, exportación a Excel
 - **Panel de Inicio como reporte**: KPIs, valor del inventario, gráficas y **descarga en PDF**
@@ -64,8 +64,8 @@ VITE_SUPABASE_ANON_KEY=tu-clave-anon-publica
 ## Importar el inventario desde Excel (una sola vez)
 
 El importador lee `doc/<libro>.xlsm` (carpeta `doc/` **no versionada**; también acepta la ruta en `IMPORT_XLSX`)
-y crea un movimiento por fila de las hojas **ENTRADAS** y **SALIDAS**, con su código, unidad, costo,
-precio de venta y fecha reales. Usa IDs deterministas + `upsert`, así que se puede repetir sin duplicar.
+y crea un movimiento por fila de las hojas **ENTRADAS** y **SALIDAS**, con su código, unidad, costo
+y fecha reales. Usa IDs deterministas + `upsert`, así que se puede repetir sin duplicar.
 
 ```powershell
 # Revisar sin escribir nada

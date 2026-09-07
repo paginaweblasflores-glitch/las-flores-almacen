@@ -18,7 +18,6 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
     const key = m.codigo.toUpperCase().trim();
     const existing = map.get(key);
     const costo = unitCost(m);
-    const precioVenta = m.precioVenta && m.precioVenta > 0 ? m.precioVenta : costo;
     const categoria = m.categoria || DEFAULT_CATEGORIES[0];
 
     if (!existing) {
@@ -28,7 +27,6 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
         cantidadDisponible: m.tipo === "Entrada" ? m.cantidad : -m.cantidad,
         unidadMedida: m.unidadMedida,
         costo,
-        precioVenta,
         stockMinimo: m.stockMinimo ?? 0,
         valor: costo,
         fechaActualizacion: m.fecha,
@@ -42,7 +40,6 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
       existing.fechaActualizacion = m.fecha;
       existing.responsable = m.responsable;
       existing.costo = costo;
-      existing.precioVenta = precioVenta;
       existing.valor = costo;
       existing.area = m.area;
       existing.descripcion = m.descripcion;
@@ -74,7 +71,6 @@ function movementFromRow(row: Record<string, unknown>): Movement {
     cantidad,
     unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
     costo,
-    precioVenta: row.precio_venta != null ? Number(row.precio_venta) : costo,
     stockMinimo: row.stock_minimo != null ? Number(row.stock_minimo) : 0,
     valor,
     fecha: String(row.fecha),
@@ -95,7 +91,6 @@ function movementToRow(movement: Movement) {
     cantidad: movement.cantidad,
     unidad_medida: movement.unidadMedida ?? null,
     costo: movement.costo ?? 0,
-    precio_venta: movement.precioVenta ?? 0,
     stock_minimo: movement.stockMinimo ?? 0,
     valor: movement.valor,
     fecha: movement.fecha,
@@ -115,16 +110,14 @@ interface ProductPatch {
   categoria?: string;
   unidadMedida?: string;
   costo?: number;
-  precioVenta?: number;
   stockMinimo?: number;
   imagen?: string;
 }
 
-// Al registrar/editar un movimiento, costo, precioVenta y stockMinimo son
-// opcionales: si no llegan, el store los deriva o usa 0.
-export type MovementInput = Omit<Movement, "id" | "costo" | "precioVenta" | "stockMinimo" | "valor"> & {
+// Al registrar/editar un movimiento, costo y stockMinimo son opcionales:
+// si no llegan, el store los deriva o usa 0.
+export type MovementInput = Omit<Movement, "id" | "costo" | "stockMinimo" | "valor"> & {
   costo?: number;
-  precioVenta?: number;
   stockMinimo?: number;
   valor?: number;
 };
@@ -285,7 +278,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const newM: Movement = {
       ...m,
       costo,
-      precioVenta: m.precioVenta ?? costo,
       stockMinimo: m.stockMinimo ?? 0,
       valor: m.valor ?? costo * m.cantidad,
       categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
@@ -321,7 +313,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const merged: Movement = {
       ...updated,
       costo,
-      precioVenta: updated.precioVenta ?? costo,
       stockMinimo: updated.stockMinimo ?? 0,
       valor: updated.valor ?? costo * updated.cantidad,
       categoria: updated.categoria || categories[0] || DEFAULT_CATEGORIES[0],
@@ -353,7 +344,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               categoria: updated.categoria || m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
               unidadMedida: updated.unidadMedida !== undefined ? updated.unidadMedida : m.unidadMedida,
               costo: updated.costo !== undefined ? updated.costo : m.costo,
-              precioVenta: updated.precioVenta !== undefined ? updated.precioVenta : m.precioVenta,
               stockMinimo: updated.stockMinimo !== undefined ? updated.stockMinimo : m.stockMinimo,
               imagen: updated.imagen !== undefined ? updated.imagen : m.imagen,
             }
@@ -370,7 +360,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       };
       if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
       if (updated.costo !== undefined) patch.costo = updated.costo;
-      if (updated.precioVenta !== undefined) patch.precio_venta = updated.precioVenta;
       if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
       void supabase.from("movements").update(patch).ilike("codigo", oldCodigo.trim()).then(({ error }) => {
         if (error) {

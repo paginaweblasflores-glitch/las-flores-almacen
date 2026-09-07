@@ -20,7 +20,6 @@ export default function EditMovementModal({ movement, onClose }: Props) {
     cantidad: "",
     unidadMedida: "UNID" as string,
     costo: "",
-    precioVenta: "",
     stockMinimo: "",
     fecha: "",
     responsable: "",
@@ -40,7 +39,6 @@ export default function EditMovementModal({ movement, onClose }: Props) {
         cantidad: movement.cantidad.toString(),
         unidadMedida: movement.unidadMedida || "UNID",
         costo: movement.costo ? movement.costo.toString() : "",
-        precioVenta: movement.precioVenta ? movement.precioVenta.toString() : "",
         stockMinimo: movement.stockMinimo ? movement.stockMinimo.toString() : "",
         fecha: movement.fecha,
         responsable: movement.responsable,
@@ -96,19 +94,12 @@ export default function EditMovementModal({ movement, onClose }: Props) {
       return;
     }
 
-    const precioVenta = form.precioVenta ? Number(form.precioVenta) : costo;
-    if (isNaN(precioVenta) || precioVenta < 0) {
-      setError("El precio de venta debe ser un número válido mayor o igual a 0.");
-      return;
-    }
-
     const err = updateMovement(movement!.id, {
       codigo: form.codigo.toUpperCase().trim(),
       descripcion: form.descripcion.trim(),
       cantidad: qty,
       unidadMedida: form.unidadMedida,
       costo,
-      precioVenta,
       stockMinimo: form.stockMinimo === "" ? undefined : Number(form.stockMinimo),
       fecha: form.fecha,
       responsable: form.responsable.trim(),
@@ -210,19 +201,6 @@ export default function EditMovementModal({ movement, onClose }: Props) {
                 onChange={(e) => setForm({ ...form, costo: e.target.value })}
                 className="input font-mono"
                 required
-              />
-            </div>
-
-            {/* Precio de venta */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Precio de venta (S/)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.precioVenta}
-                onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
-                className="input font-mono"
               />
             </div>
 

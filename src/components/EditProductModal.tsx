@@ -20,7 +20,6 @@ export default function EditProductModal({ product, onClose }: Props) {
   const [categoria, setCategoria] = useState<string>(categories[0] || DEFAULT_CATEGORIES[0]);
   const [unidadMedida, setUnidadMedida] = useState<string>("UNID");
   const [costo, setCosto] = useState("");
-  const [precioVenta, setPrecioVenta] = useState("");
   const [stockMinimo, setStockMinimo] = useState("");
   const [imagen, setImagen] = useState("");
   const [error, setError] = useState("");
@@ -34,7 +33,6 @@ export default function EditProductModal({ product, onClose }: Props) {
       setCategoria(product.categoria || categories[0] || DEFAULT_CATEGORIES[0]);
       setUnidadMedida(product.unidadMedida || "UNID");
       setCosto(product.costo ? product.costo.toString() : "");
-      setPrecioVenta(product.precioVenta ? product.precioVenta.toString() : "");
       setStockMinimo(product.stockMinimo ? product.stockMinimo.toString() : "");
       setImagen(product.imagen || "");
       setError("");
@@ -79,7 +77,6 @@ export default function EditProductModal({ product, onClose }: Props) {
       categoria,
       unidadMedida,
       costo: costo === "" ? undefined : Number(costo),
-      precioVenta: precioVenta === "" ? undefined : Number(precioVenta),
       stockMinimo: stockMinimo === "" ? undefined : Number(stockMinimo),
       imagen,
     });
@@ -135,8 +132,8 @@ export default function EditProductModal({ product, onClose }: Props) {
             />
           </div>
 
-          {/* Unidad, Costo, Precio de venta y Stock mínimo */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* Unidad, Costo y Stock mínimo */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Unidad</label>
               <ComboBox value={unidadMedida} options={unidades} placeholder="UNID" uppercase onChange={setUnidadMedida} />
@@ -149,18 +146,6 @@ export default function EditProductModal({ product, onClose }: Props) {
                 step="0.01"
                 value={costo}
                 onChange={(e) => setCosto(e.target.value)}
-                className="input font-mono"
-                placeholder="0.00"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">P. venta (S/)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={precioVenta}
-                onChange={(e) => setPrecioVenta(e.target.value)}
                 className="input font-mono"
                 placeholder="0.00"
               />

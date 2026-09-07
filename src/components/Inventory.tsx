@@ -93,7 +93,6 @@ export default function Inventory() {
                 <th className="text-right px-4 py-3">Mín.</th>
                 <th className="text-left px-4 py-3">Unidad</th>
                 <th className="text-right px-4 py-3">Costo unit.</th>
-                <th className="text-right px-4 py-3">P. venta</th>
                 <th className="text-left px-4 py-3">Actualizado</th>
                 <th className="text-left px-4 py-3">Área</th>
                 <th className="text-center px-4 py-3">Acciones</th>
@@ -139,7 +138,6 @@ export default function Inventory() {
                   <td className="px-4 py-3 text-right font-mono text-xs text-stone-400">{item.stockMinimo > 0 ? item.stockMinimo : "—"}</td>
                   <td className="px-4 py-3 text-stone-500 text-xs">{item.unidadMedida || "—"}</td>
                   <td className="px-4 py-3 text-right font-mono text-stone-600">S/ {item.costo.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-stone-800">S/ {item.precioVenta.toFixed(2)}</td>
                   <td className="px-4 py-3 text-stone-500">{item.fechaActualizacion.split("-").reverse().join("/")}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{item.area}</span>
@@ -188,7 +186,7 @@ export default function Inventory() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-stone-400 text-sm">No se encontraron productos.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-stone-400 text-sm">No se encontraron productos.</td></tr>
               )}
             </tbody>
           </table>

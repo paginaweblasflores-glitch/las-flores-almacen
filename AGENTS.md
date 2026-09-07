@@ -20,7 +20,7 @@ pnpm run preview  # sirve la compilación de dist/
 - `src/store.tsx` — estado global y sincronización con Supabase; el inventario y las listas (categorías, áreas, unidades) se derivan de los movimientos; la carga pagina de a 1000 filas
 - `src/toast.tsx` — avisos en pantalla (`useToast`, `<ToastProvider>`)
 - `src/supabaseClient.ts` — cliente de Supabase y constantes de acceso
-- `src/types.ts` — tipos (`Movement`, `InventoryItem`), listas por defecto (`AREAS`, `DEFAULT_CATEGORIES`, `UNIDADES_MEDIDA`), `MARGEN_PRECIO_VENTA`, `AVISOS_VOLUMEN`
+- `src/types.ts` — tipos (`Movement`, `InventoryItem`), listas por defecto (`AREAS`, `DEFAULT_CATEGORIES`, `UNIDADES_MEDIDA`), `AVISOS_VOLUMEN`
 - `src/utils/image.ts` — redimensionado y compresión de imágenes de producto
 - `src/utils/storage.ts` — sube la imagen comprimida a Supabase Storage (bucket `productos`); si falla usa un data URL
 - `src/index.css` — CSS global: `@import 'tailwindcss'`, tokens de marca (`@theme`), controles base y reglas de impresión
