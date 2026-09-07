@@ -86,7 +86,9 @@
   --radius: 0.5rem;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   font-family: 'Outfit', system-ui, sans-serif;
 }
@@ -102,12 +104,16 @@ body {
   outline-offset: 2px;
   border-radius: 3px;
 }
+
 .input:focus-visible {
   outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
@@ -115,43 +121,103 @@ body {
 
 /* ------------------------------------------------------------------ */
 /*  Impresión — comprobante de salida (tiquetera térmica 80mm)        */
+/*  Modelo: Star Micronics BSC10 · 203dpi · 72mm imprimible · 576px  */
 /* ------------------------------------------------------------------ */
-.print-only { display: none; }
+
+/* Ocultar el portal y los bloques solo-impresión en pantalla normal */
+.ticket-portal,
+.print-only {
+  display: none;
+}
 
 @media print {
-  @page { size: 80mm auto; margin: 3mm; }
 
-  aside,
-  .no-print { display: none !important; }
+  /*
+   * La BSC10 ya aplica 4mm físicos en cada lado del cabezal.
+   * NO agregar márgenes en @page — se sumarían a los físicos y
+   * el área útil pasaría de 72mm a ~64mm, cortando el texto.
+   */
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
 
-  .print-only { display: block !important; }
+  /* Ocultar TODO el contenido de body */
+  body>* {
+    display: none !important;
+  }
 
-  html, body, #root {
+  /* Mostrar solo el ticket portal */
+  body>.ticket-portal {
+    display: block !important;
+    /* 72mm imprimibles − 4mm margen físico de cada lado = 64mm de contenido seguro */
+    width: 64mm !important;
+    margin: 0 !important;
+    /* padding: solo left para compensar margen físico izquierdo del cabezal     */
+    /* top: la BSC10 agrega su propio margen físico al inicio — no poner CSS aquí */
+    /* bottom: ignorado por la térmica — se usa <br> en el JSX para avanzar papel */
+    padding: 0 0 0 6mm !important;
+    font-family: system-ui, Arial, sans-serif !important;
+    font-size: 11px !important;
+    color: #000 !important;
+    background: #fff !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* Todo el ticket en negrita y negro puro: la térmica no imprime bien
+     los grises ni el texto fino — sale borroso o casi invisible. */
+  body>.ticket-portal,
+  body>.ticket-portal * {
+    color: #000 !important;
+    font-weight: 700 !important;
+  }
+
+  html,
+  body {
     height: auto !important;
     background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  #root > div { display: block !important; }
-  main { overflow: visible !important; }
-  main > div { max-width: none !important; padding: 0 !important; }
 
-  .report-section { break-inside: avoid; }
-
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     box-shadow: none !important;
     transition: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
+
 
 * {
   scrollbar-width: thin;
   scrollbar-color: #d6cfc6 transparent;
 }
-*::-webkit-scrollbar { width: 6px; height: 6px; }
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: #d6cfc6; border-radius: 3px; }
 
-.font-mono { font-family: 'DM Mono', monospace; }
-.font-serif { font-family: 'Fraunces', Georgia, serif; }
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #d6cfc6;
+  border-radius: 3px;
+}
+
+.font-mono {
+  font-family: 'DM Mono', monospace;
+}
+
+.font-serif {
+  font-family: 'Fraunces', Georgia, serif;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Controles base                                                    */
@@ -168,12 +234,19 @@ body {
   transition: border-color 0.15s, box-shadow 0.15s;
   width: 100%;
 }
+
 .input:focus {
   border-color: var(--color-brand-500);
   box-shadow: 0 0 0 3px rgba(200, 55, 42, 0.14);
 }
-.input::placeholder { color: #a8a29e; }
-select.input { cursor: pointer; }
+
+.input::placeholder {
+  color: #a8a29e;
+}
+
+select.input {
+  cursor: pointer;
+}
 
 /* Botón primario de marca */
 .btn-brand {
@@ -183,6 +256,16 @@ select.input { cursor: pointer; }
   border-radius: 0.625rem;
   transition: background-color 0.15s;
 }
-.btn-brand:hover { background: var(--color-brand-600); }
-.btn-brand:active { background: var(--color-brand-700); }
-.btn-brand:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-brand:hover {
+  background: var(--color-brand-600);
+}
+
+.btn-brand:active {
+  background: var(--color-brand-700);
+}
+
+.btn-brand:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

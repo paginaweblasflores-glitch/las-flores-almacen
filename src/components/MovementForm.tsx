@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES, MARGEN_PRECIO_VENTA } from "../types";
 import type { MovementType, InventoryItem } from "../types";
@@ -1014,58 +1015,58 @@ export default function MovementForm() {
       </form>
     </div>
 
-    {/* Comprobante de salida (solo impresión — tiquetera) */}
-    {ticket && (
-        <div className="print-only">
-          <div className="mx-auto text-stone-900" style={{ width: "72mm" }}>
-            <div className="flex flex-col items-center text-center gap-1 pb-2 border-b-2 border-stone-900">
-              <img src="/logo.png" alt="Las Flores" className="w-14 h-14 object-contain" />
-              <p className="font-serif font-bold text-base leading-tight">Restaurante Las Flores</p>
-              <p className="text-[10px] uppercase tracking-wider text-stone-600">
-                Comprobante de salida de almacén
-              </p>
-            </div>
 
-            <div className="py-2 flex flex-col gap-1 text-[11px] border-b border-dashed border-stone-400">
-              <div className="flex justify-between gap-2">
-                <span className="text-stone-500">Fecha</span>
-                <span className="font-semibold">{ticket.fecha.split("-").reverse().join("/")}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-stone-500">Código</span>
-                <span className="font-semibold">{ticket.codigo}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-stone-500 flex-shrink-0">Producto</span>
-                <span className="font-semibold text-right">{ticket.descripcion}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-stone-500">Cantidad</span>
-                <span className="font-semibold">
-                  {ticket.cantidad} {ticket.unidadMedida}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-stone-500">Área</span>
-                <span className="font-semibold">{ticket.area}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-stone-500">Categoría</span>
-                <span className="font-semibold">{ticket.categoria}</span>
-              </div>
-            </div>
-
-            <div className="pt-10 flex flex-col items-center gap-1 text-[11px]">
-              <div className="w-full border-t border-stone-900" />
-              <p className="font-semibold">{ticket.responsable}</p>
-            </div>
-
-            <p className="text-center text-[9px] text-stone-400 mt-4 pt-2 border-t border-dashed border-stone-400">
-              Sistema Almacén · Restaurante Las Flores
-            </p>
+    {/* Comprobante de salida — portal en body para impresión limpia */}
+    {ticket && createPortal(
+      <div className="ticket-portal">
+        {/* Cabecera: logo + nombre */}
+        <div style={{ textAlign: "center", borderBottom: "2px solid #000", paddingBottom: "6px", marginBottom: "6px" }}>
+          <img
+            src="/logo.png"
+            alt="Las Flores"
+            style={{ width: "40px", height: "40px", objectFit: "contain", display: "block", margin: "0 auto 4px" }}
+          />
+          <div style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.02em", color: "#000" }}>Restaurante Las Flores</div>
+          <div style={{ fontWeight: 700, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.08em", color: "#000", marginTop: "2px" }}>
+            Comprobante de Salida de Almacén
           </div>
         </div>
-      )}
+
+        {/* Datos del movimiento */}
+        <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
+          {[
+            ["Fecha",    ticket.fecha.split("-").reverse().join("/")],
+            ["Código",   ticket.codigo],
+            ["Producto", ticket.descripcion],
+            ["Cantidad", `${ticket.cantidad} ${ticket.unidadMedida}`],
+            ["Área",     ticket.area],
+            ["Categoría",ticket.categoria],
+          ].map(([label, value]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "11px", lineHeight: "1.6", fontWeight: 700, color: "#000" }}>
+              <span style={{ flexShrink: 0 }}>{label}</span>
+              <span style={{ textAlign: "right", wordBreak: "break-word", overflowWrap: "break-word", maxWidth: "52%" }}>{value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Firma del responsable */}
+        <div style={{ textAlign: "center", paddingTop: "75px" }}>
+          <div style={{ borderTop: "1px solid #000", width: "60%", margin: "0 auto 4px" }} />
+          <div style={{ fontSize: "11px", fontWeight: 700, color: "#000" }}>{ticket.responsable}</div>
+          <div style={{ fontSize: "9px", fontWeight: 700, color: "#000" }}>Responsable</div>
+        </div>
+
+        {/* Pie */}
+        <div style={{ textAlign: "center", borderTop: "1px dashed #000", marginTop: "10px", paddingTop: "5px", fontSize: "9px", fontWeight: 700, color: "#000" }}>
+          Sistema Almacén · Restaurante Las Flores
+        </div>
+
+        {/* Avance de papel inferior: <br> forzan al cabezal a imprimir líneas en */}
+        {/* blanco antes del corte — ~5 líneas ≈ 12mm de espacio para perforar   */}
+        <br/><br/><br/><br/><br/>
+      </div>,
+      document.body
+    )}
     </>
   );
 }
