@@ -60,6 +60,57 @@ function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
   return map;
 }
 
+export interface CierrePreview {
+  corte: string;        // "AAAA-12-31" — se archivan los movimientos con fecha <= corte
+  inicioNuevo: string;  // "AAAA+1-01-01" — fecha de los saldos iniciales
+  marca: string;        // responsable de los saldos: "SALDO INICIAL AAAA+1"
+  archivados: Movement[];
+  saldos: Movement[];   // un saldo inicial por producto (Entrada con el stock al corte)
+  negativos: number;    // productos con stock negativo que quedarán en 0
+}
+
+export interface CierreResult {
+  error: string | null;
+  archivados: number;
+  saldosCreados: number;
+  borrados: number;
+}
+
+// Arma el cierre anual: qué movimientos se archivan (fecha <= 31/12 del año) y
+// el saldo inicial de cada producto (una Entrada fechada el 01/01 del año
+// siguiente con el stock a esa fecha). El costo se copia del inventario, sin
+// cálculos. Los productos en 0 —o en negativo, que pasan a 0— también reciben saldo.
+export function construirCierre(movements: Movement[], anio: number): CierrePreview {
+  const corte = `${anio}-12-31`;
+  const inicioNuevo = `${anio + 1}-01-01`;
+  const marca = `SALDO INICIAL ${anio + 1}`;
+  const archivados = movements.filter((m) => m.fecha <= corte);
+  const inv = Array.from(buildInventory(archivados).values());
+  let negativos = 0;
+  const saldos: Movement[] = inv.map((item) => {
+    if (item.cantidadDisponible < 0) negativos++;
+    const cantidad = Math.max(0, item.cantidadDisponible);
+    return {
+      id: crypto.randomUUID(),
+      codigo: item.codigo,
+      descripcion: item.descripcion,
+      cantidad,
+      unidadMedida: item.unidadMedida,
+      costo: item.costo,
+      stockMinimo: item.stockMinimo,
+      valor: Math.round(item.costo * cantidad * 100) / 100,
+      fecha: inicioNuevo,
+      responsable: marca,
+      area: item.area,
+      categoria: item.categoria,
+      tipo: "Entrada",
+      imagen: item.imagen,
+      motivo: `Cierre de ${anio}`,
+    };
+  });
+  return { corte, inicioNuevo, marca, archivados, saldos, negativos };
+}
+
 function movementFromRow(row: Record<string, unknown>): Movement {
   const cantidad = Number(row.cantidad);
   const valor = Number(row.valor);
@@ -136,6 +187,7 @@ interface StoreCtx {
   deleteMovement: (id: string) => void;
   deleteProduct: (codigo: string) => void;
   clearAll: () => void;
+  cerrarAnio: (anio: number) => Promise<CierreResult>;
 }
 
 const Ctx = createContext<StoreCtx | null>(null);
@@ -451,6 +503,86 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Cierre anual: archiva los movimientos con fecha <= 31/12 del año elegido y
+  // los reemplaza por un saldo inicial por producto (Entrada fechada el 01/01
+  // del año siguiente). Lo hace la app: primero crea los saldos, verifica, y
+  // recién entonces borra los archivados en lotes. Si el borrado se corta a la
+  // mitad, un nuevo intento NO vuelve a crear saldos (ya existen): solo repite
+  // el borrado de lo que quedó, así no hay doble conteo.
+  async function cerrarAnio(anio: number): Promise<CierreResult> {
+    const { marca, archivados, saldos } = construirCierre(movements, anio);
+    if (archivados.length === 0) {
+      return {
+        error: `No hay movimientos con fecha del ${anio} o de años anteriores.`,
+        archivados: 0,
+        saldosCreados: 0,
+        borrados: 0,
+      };
+    }
+
+    const saldosYaExisten = movements.some((m) => m.responsable === marca);
+
+    // 1) Crear los saldos iniciales (se omite si ya se crearon en un intento previo).
+    if (!saldosYaExisten) {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from("movements")
+          .insert(saldos.map(movementToRow))
+          .select("id");
+        if (error || !data || data.length !== saldos.length) {
+          console.error("Cierre anual: error creando saldos iniciales", error);
+          if (data && data.length) {
+            await supabase.from("movements").delete().in("id", data.map((r) => String(r.id)));
+          }
+          return {
+            error:
+              "No se pudieron crear los saldos iniciales. No se borró ningún movimiento; volvé a intentarlo.",
+            archivados: archivados.length,
+            saldosCreados: 0,
+            borrados: 0,
+          };
+        }
+      }
+      setMovements((prev) => [...prev, ...saldos]);
+    }
+
+    // 2) Borrar los movimientos archivados, en lotes.
+    const ids = archivados.map((m) => m.id);
+    let borrados = 0;
+    if (supabase) {
+      for (let i = 0; i < ids.length; i += 150) {
+        const chunk = ids.slice(i, i + 150);
+        const { error } = await supabase.from("movements").delete().in("id", chunk);
+        if (error) {
+          console.error("Cierre anual: error borrando lote de archivados", error);
+          if (borrados > 0) {
+            const hechos = new Set(ids.slice(0, borrados));
+            setMovements((prev) => prev.filter((m) => !hechos.has(m.id)));
+          }
+          return {
+            error: `Se crearon los saldos iniciales, pero faltó borrar ${
+              ids.length - borrados
+            } movimientos antiguos. Volvé a hacer el cierre del ${anio}: solo se repetirá el borrado.`,
+            archivados: archivados.length,
+            saldosCreados: saldosYaExisten ? 0 : saldos.length,
+            borrados,
+          };
+        }
+        borrados += chunk.length;
+      }
+    }
+
+    // 3) Éxito: reflejar en el estado local.
+    const idSet = new Set(ids);
+    setMovements((prev) => prev.filter((m) => !idSet.has(m.id)));
+    return {
+      error: null,
+      archivados: archivados.length,
+      saldosCreados: saldosYaExisten ? 0 : saldos.length,
+      borrados: ids.length,
+    };
+  }
+
   function clearAll() {
     setMovements([]);
     if (supabase) {
@@ -486,6 +618,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         deleteMovement,
         deleteProduct,
         clearAll,
+        cerrarAnio,
       }}
     >
       {children}

@@ -1,14 +1,7 @@
 import { useState } from "react";
-import * as XLSX from "xlsx";
 import { useStore } from "../store";
 import type { MovementType } from "../types";
-
-function exportSheet(filename: string, data: Record<string, unknown>[]) {
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Datos");
-  XLSX.writeFile(wb, filename);
-}
+import { descargarHoja, movimientoAFila } from "../utils/excel";
 
 export default function ExportExcel() {
   const { movements, inventory } = useStore();
@@ -17,24 +10,10 @@ export default function ExportExcel() {
   const [to, setTo] = useState(today);
   const [tipo, setTipo] = useState<MovementType | "Todos">("Todos");
 
-  function fmtMovement(m: (typeof movements)[0]) {
-    return {
-      Código: m.codigo,
-      Descripción: m.descripcion,
-      Categoría: m.categoria || "Sin categoría",
-      Tipo: m.tipo,
-      Cantidad: m.cantidad,
-      "Unidad de medida": m.unidadMedida || "",
-      "Costo unitario": m.costo,
-      "Valor total": m.valor,
-      Fecha: m.fecha.split("-").reverse().join("/"),
-      Responsable: m.responsable,
-      Área: m.area,
-    };
-  }
+  const fmtMovement = movimientoAFila;
 
   function exportInventory() {
-    exportSheet("inventario.xlsx", inventory.map((i) => ({
+    descargarHoja("inventario.xlsx", inventory.map((i) => ({
       Código: i.codigo,
       Descripción: i.descripcion,
       Categoría: i.categoria || "Sin categoría",
@@ -48,11 +27,11 @@ export default function ExportExcel() {
   }
 
   function exportEntradas() {
-    exportSheet("entradas.xlsx", movements.filter((m) => m.tipo === "Entrada").map(fmtMovement));
+    descargarHoja("entradas.xlsx", movements.filter((m) => m.tipo === "Entrada").map(fmtMovement));
   }
 
   function exportSalidas() {
-    exportSheet("salidas.xlsx", movements.filter((m) => m.tipo === "Salida").map(fmtMovement));
+    descargarHoja("salidas.xlsx", movements.filter((m) => m.tipo === "Salida").map(fmtMovement));
   }
 
   function exportByDate() {
@@ -61,7 +40,7 @@ export default function ExportExcel() {
       const matchTipo = tipo === "Todos" || m.tipo === tipo;
       return inRange && matchTipo;
     });
-    exportSheet(`movimientos_${from}_${to}.xlsx`, filtered.map(fmtMovement));
+    descargarHoja(`movimientos_${from}_${to}.xlsx`, filtered.map(fmtMovement));
   }
 
   return (

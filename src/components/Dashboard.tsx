@@ -1,6 +1,4 @@
-import { useState } from "react";
 import { useStore } from "../store";
-import { AVISOS_VOLUMEN, type NivelAviso } from "../types";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -16,12 +14,6 @@ import {
 
 const BRAND = "#c8372a";
 const LEAF = "#3f7e2f";
-
-const AVISO_ESTILO: Record<NivelAviso, string> = {
-  info: "bg-stone-50 border-stone-300 text-stone-700",
-  warn: "bg-amber-50 border-amber-300 text-amber-800",
-  error: "bg-brand-50 border-brand-300 text-brand-800",
-};
 
 function soles(n: number): string {
   return n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -66,26 +58,12 @@ export default function Dashboard() {
   const now = new Date();
   const today = now.toISOString().split("T")[0];
 
-  // ---- Aviso por volumen de datos ----
-  const [avisosCerrados, setAvisosCerrados] = useState<Record<number, boolean>>(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem("avisos-volumen-cerrados") || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const avisoVolumen = [...AVISOS_VOLUMEN].reverse().find((a) => movements.length >= a.limite);
-  const mostrarAviso = avisoVolumen && !avisosCerrados[avisoVolumen.limite];
-  function cerrarAviso() {
-    if (!avisoVolumen) return;
-    const next = { ...avisosCerrados, [avisoVolumen.limite]: true };
-    setAvisosCerrados(next);
-    try {
-      sessionStorage.setItem("avisos-volumen-cerrados", JSON.stringify(next));
-    } catch {
-      /* sessionStorage no disponible */
-    }
-  }
+  // ---- Aviso de cierre anual pendiente ----
+  // Aparece cuando hay movimientos con fecha del año pasado (o anterior). No se
+  // puede descartar: reaparece cada vez que se entra hasta hacer el cierre.
+  const anioActual = now.getFullYear();
+  const anioACerrar = anioActual - 1;
+  const cierrePendiente = movements.some((m) => Number(m.fecha.slice(0, 4)) <= anioACerrar);
 
   // ---- Valores base ----
   const valorStock = (i: (typeof inventory)[number]) => Math.max(0, i.cantidadDisponible) * i.costo;
@@ -287,27 +265,21 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Aviso por volumen de datos */}
-      {mostrarAviso && avisoVolumen && (
-        <div className={`no-print flex items-start gap-3 rounded-xl border p-4 ${AVISO_ESTILO[avisoVolumen.nivel]}`}>
+      {/* Aviso de cierre anual pendiente */}
+      {cierrePendiente && (
+        <div className="no-print flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 p-4">
           <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
           </svg>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">
-              {avisoVolumen.titulo} · {movements.length.toLocaleString("es-PE")} movimientos
+            <p className="text-sm font-semibold">Cierre del año {anioACerrar} pendiente</p>
+            <p className="text-xs mt-1 opacity-90 leading-relaxed">
+              Ya estás en {anioActual}. Para empezar el año con la base liviana, hacé el{" "}
+              <strong>cierre anual</strong>: descarga un Excel con todo el detalle de {anioACerrar} y deja
+              el sistema solo con el stock actual de cada producto (unos {inventory.length} registros).
+              El stock y los costos no cambian. Andá a <strong>Configuración → Cierre de periodo</strong>.
             </p>
-            <p className="text-xs mt-0.5 opacity-90">{avisoVolumen.mensaje}</p>
           </div>
-          <button
-            onClick={cerrarAviso}
-            aria-label="Cerrar aviso"
-            className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
       )}
 
