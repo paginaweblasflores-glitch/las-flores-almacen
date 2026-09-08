@@ -21,7 +21,7 @@ const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   },
   {
     id: "registrar",
-    label: "Registrar",
+    label: "Nuevo producto",
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v16m8-8H4" /></svg>,
   },
   {

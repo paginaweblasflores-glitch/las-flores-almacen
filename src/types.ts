@@ -134,3 +134,23 @@ export interface InventoryItem {
   imagen?: string;
 }
 
+// Una línea del carrito de registro (entrada o salida de varios productos a la vez).
+export interface CartLine {
+  codigo: string;
+  descripcion: string;
+  unidadMedida?: string;
+  costo: number;         // costo de referencia traído del inventario (para valorizar)
+  categoria?: string;
+  area?: string;         // área del producto en inventario (se hereda en las entradas)
+  stockActual: number;   // snapshot de cantidadDisponible al agregar (solo visual)
+  cantidad: number;      // editable, entero >= 1
+}
+
+// Datos para el comprobante impreso de una salida (varios ítems).
+export interface TicketData {
+  fecha: string;
+  area: string;          // área destino
+  responsable: string;
+  items: { codigo: string; descripcion: string; cantidad: number; unidadMedida: string }[];
+}
+

@@ -16,8 +16,12 @@ pnpm run preview  # sirve la compilación de dist/
 
 - `src/main.tsx` — punto de entrada; monta `src/App.tsx` dentro de `ToastProvider`
 - `src/App.tsx` — componente raíz: autenticación con Supabase, sidebar responsive y enrutado entre pantallas
-- `src/components/` — pantallas y formularios (Login, Dashboard, Registrar, Inventory, Entries, Exits, DateSearch, CodeSearch, ExportExcel, los modales de edición) más `ComboBox` (desplegable editable), `Pager` (paginación)
-- `src/store.tsx` — estado global y sincronización con Supabase; el inventario y las listas (categorías, áreas, unidades) se derivan de los movimientos; la carga pagina de a 1000 filas
+- `src/components/` — pantallas y formularios:
+  - `Registrar` (`Nuevo producto` en el menú) → `NewProductEntryForm`: alta de un producto que aún no existe (una sola entrada inicial).
+  - `Entries` / `Exits` (`Entradas` / `Salidas`): cada uno monta `MovementCart` (carrito multi-ítem: buscar producto → agregar → cantidad → responsable → registrar; en Salida además motivo + impresión del comprobante) y debajo el `MovementsTable` con el historial.
+  - `MovementCart` — carrito de registro; `addMovements` del store escribe todos los movimientos en un solo `insert`. `Field` — helper de campo etiquetado.
+  - `Dashboard`, `Inventory`, `DateSearch`, `CodeSearch`, `ExportExcel`, los modales de edición, `ComboBox` (desplegable editable), `Pager` (paginación).
+- `src/store.tsx` — estado global y sincronización con Supabase; el inventario y las listas (categorías, áreas, unidades) se derivan de los movimientos; la carga pagina de a 1000 filas. `addMovement` (uno) y `addMovements` (lote, con validación de stock acumulada y rollback si falla el insert).
 - `src/toast.tsx` — avisos en pantalla (`useToast`, `<ToastProvider>`)
 - `src/supabaseClient.ts` — cliente de Supabase y constantes de acceso
 - `src/types.ts` — tipos (`Movement`, `InventoryItem`), listas por defecto (`AREAS`, `DEFAULT_CATEGORIES`, `UNIDADES_MEDIDA`), `AVISOS_VOLUMEN`

@@ -130,6 +130,7 @@ interface StoreCtx {
   areas: string[];
   nextCodigo: () => string;
   addMovement: (m: MovementInput) => string | null;
+  addMovements: (list: MovementInput[]) => string | null;
   updateMovement: (id: string, updated: MovementInput) => string | null;
   updateProduct: (oldCodigo: string, updated: ProductPatch) => void;
   deleteMovement: (id: string) => void;
@@ -297,6 +298,61 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return null;
   }
 
+  // Registra varios movimientos a la vez (carrito de entrada/salida).
+  function addMovements(list: MovementInput[]): string | null {
+    if (list.length === 0) return "El carrito está vacío.";
+
+    // Chequeo de stock acumulado: dos líneas del mismo código se descuentan juntas.
+    const inv = buildInventory(movements);
+    const running = new Map<string, number>();
+    for (const m of list) {
+      if (m.tipo !== "Salida") continue;
+      const key = m.codigo.toUpperCase().trim();
+      const disponible = running.has(key)
+        ? (running.get(key) as number)
+        : inv.get(key)?.cantidadDisponible ?? 0;
+      const restante = disponible - m.cantidad;
+      if (restante < 0) {
+        return `Stock insuficiente para "${m.descripcion}". Disponible: ${Math.max(0, disponible)}.`;
+      }
+      running.set(key, restante);
+    }
+
+    const newMs: Movement[] = list.map((m) => {
+      const costo = m.costo ?? (m.valor && m.cantidad > 0 ? m.valor / m.cantidad : 0);
+      return {
+        ...m,
+        costo,
+        stockMinimo: m.stockMinimo ?? 0,
+        valor: m.valor ?? costo * m.cantidad,
+        categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
+        id: crypto.randomUUID(),
+      };
+    });
+    const newIds = new Set(newMs.map((m) => m.id));
+
+    setMovements((prev) => [...prev, ...newMs]);
+
+    if (supabase) {
+      const tipo = list[0].tipo;
+      void supabase
+        .from("movements")
+        .insert(newMs.map(movementToRow))
+        .then(({ error }) => {
+          if (error) {
+            console.error("Error guardando movimientos en Supabase:", error);
+            setMovements((prev) => prev.filter((m) => !newIds.has(m.id)));
+            toast.error(
+              `No se guardaron los ${newMs.length} movimientos. Vuelve a intentarlo.`
+            );
+          } else {
+            toast.success(`${newMs.length} movimiento(s) de ${tipo} guardados.`);
+          }
+        });
+    }
+    return null;
+  }
+
   function updateMovement(id: string, updated: MovementInput): string | null {
     // Check stock if updated is a Salida or changes quantities
     const otherMovements = movements.filter((m) => m.id !== id);
@@ -424,6 +480,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         areas,
         nextCodigo,
         addMovement,
+        addMovements,
         updateMovement,
         updateProduct,
         deleteMovement,

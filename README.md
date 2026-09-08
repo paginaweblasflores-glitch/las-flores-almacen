@@ -2,7 +2,9 @@
 
 Aplicación web de control de inventario para el almacén de **Restaurante Las Flores**.
 
-- Registro de **entradas y salidas** con validación de stock (varios productos por comprobante)
+- **Entradas** y **Salidas** con carrito multi-ítem: se busca cada producto, se agrega con su
+  cantidad y se registran todos juntos; la Salida imprime un comprobante para firmar
+- **Nuevo producto**: alta de un producto que aún no existe en el almacén
 - **Inventario** en tiempo real (stock calculado a partir de los movimientos)
 - **Costo**, **unidad de medida** y **stock mínimo** por producto
 - **Foto** por producto (Supabase Storage)
