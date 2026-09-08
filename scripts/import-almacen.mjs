@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 // ---------------------------------------------------------------------------
 // Importa el inventario de Rio desde su libro de Excel a Supabase.
 // Lee las hojas ENTRADAS y SALIDAS del .xlsm y crea un movimiento por fila,
-// conservando código, unidad de medida, costo, precio de venta y fecha.
+// conservando código, unidad de medida, costo y fecha.
 // El stock se calcula en la app a partir de esos movimientos.
 //
 // Uso:
