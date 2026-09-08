@@ -1,6 +1,6 @@
 # Sistema Almacén — Las Flores
 
-Aplicación web de control de inventario para el almacén de Restaurante Las Flores.
+Aplicación web de control de inventario para el almacén de Corporación Las Flores.
 Stack: **React 19 + Vite + Tailwind CSS v4 + Supabase**. Desplegada en **Vercel**.
 
 ## Servidor de desarrollo

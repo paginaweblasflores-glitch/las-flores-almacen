@@ -1,6 +1,6 @@
 # Sistema Almacén — Las Flores
 
-Aplicación web de control de inventario para el almacén de **Restaurante Las Flores**.
+Aplicación web de control de inventario para el almacén de **Corporación Las Flores**.
 
 - **Entradas** y **Salidas** con carrito multi-ítem: se busca cada producto, se agrega con su
   cantidad y se registran todos juntos; la Salida imprime un comprobante para firmar
