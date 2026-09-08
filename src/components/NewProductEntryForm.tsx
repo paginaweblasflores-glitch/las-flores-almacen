@@ -139,9 +139,9 @@ export default function NewProductEntryForm() {
           id="np-codigo"
           action={
             codigoExistente ? (
-              <span className="text-[11px] text-brand-600 font-medium">Ya existe</span>
+              <span className="text-brand-600 font-medium lowercase">(ya existe)</span>
             ) : (
-              <span className="text-[11px] text-stone-400">correlativo automático</span>
+              <span className="text-stone-400 font-normal lowercase">(correlativo automático)</span>
             )
           }
         >
@@ -206,7 +206,7 @@ export default function NewProductEntryForm() {
           />
         </Field>
 
-        <Field label="Stock mínimo" id="np-min" action={<span className="text-[11px] text-stone-400">opcional</span>}>
+        <Field label="Stock mínimo" id="np-min" action={<span className="text-stone-400 font-normal lowercase">(opcional)</span>}>
           <input
             id="np-min"
             type="number"

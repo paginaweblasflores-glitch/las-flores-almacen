@@ -11,12 +11,10 @@ export default function Field({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-          {label}
-        </label>
-        {action}
-      </div>
+      <label htmlFor={id} className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+        {label}
+        {action ? <> {action}</> : null}
+      </label>
       {children}
     </div>
   );
