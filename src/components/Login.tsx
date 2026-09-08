@@ -76,7 +76,7 @@ export default function Login({ onLogin }: LoginProps) {
               Sistema Almacén
             </h1>
             <p className="text-sm text-muted mt-1">
-              Restaurante Las Flores · desde 1980
+              Corporación Las Flores · desde 1980
             </p>
           </div>
 
@@ -187,7 +187,7 @@ export default function Login({ onLogin }: LoginProps) {
           </form>
 
           <p className="text-center text-[11px] text-muted mt-5">
-            Sistema Almacén · Restaurante Las Flores © 2026
+            Sistema Almacén · Corporación Las Flores © 2026
           </p>
         </div>
       </div>
