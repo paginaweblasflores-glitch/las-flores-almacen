@@ -6,13 +6,12 @@ import Registrar from "./components/Registrar";
 import Inventory from "./components/Inventory";
 import Entries from "./components/Entries";
 import Exits from "./components/Exits";
-import DateSearch from "./components/DateSearch";
 import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
 import Configuracion from "./components/Configuracion";
 import { supabase } from "./supabaseClient";
 
-type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "fechas" | "buscar" | "exportar" | "configuracion";
+type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "buscar" | "exportar" | "configuracion";
 
 const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   {
@@ -41,11 +40,6 @@ const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>,
   },
   {
-    id: "fechas",
-    label: "Por fechas",
-    icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
-  },
-  {
     id: "buscar",
     label: "Buscar producto",
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
@@ -68,7 +62,6 @@ function PageContent({ page }: { page: Page }) {
   if (page === "inventario") return <Inventory />;
   if (page === "entradas") return <Entries />;
   if (page === "salidas") return <Exits />;
-  if (page === "fechas") return <DateSearch />;
   if (page === "buscar") return <CodeSearch />;
   if (page === "exportar") return <ExportExcel />;
   if (page === "configuracion") return <Configuracion />;
