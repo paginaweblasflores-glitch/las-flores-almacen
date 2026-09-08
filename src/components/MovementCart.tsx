@@ -475,7 +475,7 @@ export default function MovementCart({ tipo }: Props) {
                 style={{ width: "40px", height: "40px", objectFit: "contain", display: "block", margin: "0 auto 4px" }}
               />
               <div style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.02em", color: "#000" }}>
-                Restaurante Las Flores
+                Corporación Las Flores
               </div>
               <div style={{ fontWeight: 700, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.08em", color: "#000", marginTop: "2px" }}>
                 Comprobante de Salida de Almacén
