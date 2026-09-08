@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import { uploadProductImage } from "../utils/storage";
+import { normalizar } from "../utils/search";
 import ComboBox from "./ComboBox";
 import Field from "./Field";
 
@@ -34,9 +35,9 @@ export default function NewProductEntryForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCodigo]);
 
-  const codigoExistente = inventory.find(
-    (i) => i.codigo.toUpperCase().trim() === form.codigo.toUpperCase().trim() && form.codigo.trim() !== ""
-  );
+  const codigoExistente =
+    form.codigo.trim() !== "" &&
+    inventory.find((i) => normalizar(i.codigo) === normalizar(form.codigo));
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));

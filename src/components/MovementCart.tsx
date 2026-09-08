@@ -4,6 +4,7 @@ import { useStore } from "../store";
 import { AREAS } from "../types";
 import type { CartLine, MovementType, TicketData } from "../types";
 import ComboBox from "./ComboBox";
+import { filtrarBusqueda } from "../utils/search";
 
 interface Props {
   tipo: MovementType;
@@ -75,16 +76,16 @@ export default function MovementCart({ tipo }: Props) {
     [lines]
   );
 
-  const results = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return inventory.slice(0, 30);
-    return inventory
-      .filter(
-        (i) =>
-          i.codigo.toLowerCase().includes(q) || i.descripcion.toLowerCase().includes(q)
-      )
-      .slice(0, 30);
-  }, [search, inventory]);
+  const results = useMemo(
+    () =>
+      filtrarBusqueda(
+        inventory,
+        search,
+        (i) => i.codigo,
+        (i) => i.descripcion,
+      ).slice(0, 30),
+    [search, inventory],
+  );
 
   const overStock = (l: CartLine) => esSalida && l.cantidad > l.stockActual;
   const canSubmit =
@@ -95,6 +96,13 @@ export default function MovementCart({ tipo }: Props) {
 
   function addLine(item: (typeof inventory)[number]) {
     const key = item.codigo.toUpperCase().trim();
+    // En una salida no se puede retirar un producto agotado.
+    if (esSalida && item.cantidadDisponible <= 0) {
+      setError(`"${item.descripcion}" no tiene stock disponible. No se puede registrar su salida.`);
+      setSearch("");
+      setShowResults(false);
+      return;
+    }
     setError("");
     setLines((prev) => {
       const existing = prev.find((l) => l.codigo.toUpperCase().trim() === key);
@@ -207,6 +215,7 @@ export default function MovementCart({ tipo }: Props) {
             <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-72 overflow-auto">
               {results.map((item) => {
                 const ya = enCarrito.has(item.codigo.toUpperCase().trim());
+                const agotado = esSalida && item.cantidadDisponible <= 0;
                 const stockColor =
                   item.cantidadDisponible <= 0
                     ? "text-brand-600"
@@ -218,7 +227,10 @@ export default function MovementCart({ tipo }: Props) {
                     key={item.codigo}
                     type="button"
                     onClick={() => addLine(item)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-stone-50 border-b border-stone-50 last:border-0 cursor-pointer"
+                    disabled={agotado}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-stone-50 last:border-0 ${
+                      agotado ? "opacity-50 cursor-not-allowed" : "hover:bg-stone-50 cursor-pointer"
+                    }`}
                   >
                     {item.imagen ? (
                       <img
@@ -242,7 +254,12 @@ export default function MovementCart({ tipo }: Props) {
                         Stock: {item.cantidadDisponible} {item.unidadMedida || "UNID"}
                       </span>
                     </div>
-                    {ya && (
+                    {agotado && (
+                      <span className="text-[10px] bg-brand-50 text-brand-600 border border-brand-200 px-1.5 py-0.5 rounded-full flex-shrink-0 font-semibold">
+                        Sin stock
+                      </span>
+                    )}
+                    {!agotado && ya && (
                       <span className="text-[10px] bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded-full flex-shrink-0">
                         en carrito
                       </span>
@@ -367,6 +384,12 @@ export default function MovementCart({ tipo }: Props) {
             </svg>
             <span>{error}</span>
           </div>
+        )}
+
+        {esSalida && lines.some((l) => overStock(l)) && (
+          <p className="text-xs text-brand-600 font-medium">
+            Hay productos con más cantidad que su stock. Ajusta las cantidades para poder registrar.
+          </p>
         )}
 
         <button

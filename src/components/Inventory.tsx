@@ -3,48 +3,38 @@ import { useStore } from "../store";
 import type { InventoryItem } from "../types";
 import EditProductModal from "./EditProductModal";
 import Pager from "./Pager";
+import { filtrarBusqueda, normalizar } from "../utils/search";
 
 const PAGE_SIZE = 25;
 
 export default function Inventory() {
-  const { inventory, categories, deleteProduct, clearAll } = useStore();
+  const { inventory, categories, deleteProduct } = useStore();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
   const [editingProduct, setEditingProduct] = useState<InventoryItem | null>(null);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
-  const [dangerOpen, setDangerOpen] = useState(false);
-  const [clearConfirmText, setClearConfirmText] = useState("");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
   }, [search, selectedCategory]);
 
-  const filtered = inventory.filter((i) => {
-    const matchSearch =
-      i.codigo.toLowerCase().includes(search.toLowerCase()) ||
-      i.descripcion.toLowerCase().includes(search.toLowerCase()) ||
-      i.area.toLowerCase().includes(search.toLowerCase()) ||
-      (i.categoria && i.categoria.toLowerCase().includes(search.toLowerCase()));
-
-    const matchCategory =
-      selectedCategory === "Todas" ||
-      (i.categoria && i.categoria.toLowerCase() === selectedCategory.toLowerCase());
-
-    return matchSearch && matchCategory;
-  });
+  const bySearch = filtrarBusqueda(
+    inventory,
+    search,
+    (i) => i.codigo,
+    (i) => `${i.descripcion} ${i.area} ${i.categoria ?? ""}`,
+  );
+  const filtered =
+    selectedCategory === "Todas"
+      ? bySearch
+      : bySearch.filter((i) => normalizar(i.categoria ?? "") === normalizar(selectedCategory));
 
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function handleDeleteProduct(codigo: string) {
     deleteProduct(codigo);
     setDeletingCode(null);
-  }
-
-  function handleClearAll() {
-    clearAll();
-    setDangerOpen(false);
-    setClearConfirmText("");
   }
 
   return (
@@ -193,59 +183,6 @@ export default function Inventory() {
         </div>
         <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
       </div>
-
-      {/* Zona de peligro — vaciar almacén */}
-      {inventory.length > 0 && (
-        <div className="mt-2 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
-          {!dangerOpen ? (
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <p className="text-sm font-semibold text-brand-800">Vaciar todo el almacén</p>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Borra los {inventory.length} productos y todos sus movimientos. No se puede deshacer.
-                </p>
-              </div>
-              <button
-                onClick={() => setDangerOpen(true)}
-                className="px-3 py-2 border border-brand-300 text-brand-700 hover:bg-brand-100 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Vaciar almacén…
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              <p className="text-sm font-semibold text-brand-800">
-                Escribe <span className="font-mono bg-white border border-brand-200 px-1.5 py-0.5 rounded">VACIAR</span> para confirmar
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  autoFocus
-                  value={clearConfirmText}
-                  onChange={(e) => setClearConfirmText(e.target.value)}
-                  placeholder="VACIAR"
-                  className="input w-40 font-mono uppercase"
-                />
-                <button
-                  onClick={handleClearAll}
-                  disabled={clearConfirmText.trim().toUpperCase() !== "VACIAR"}
-                  className="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Vaciar definitivamente
-                </button>
-                <button
-                  onClick={() => {
-                    setDangerOpen(false);
-                    setClearConfirmText("");
-                  }}
-                  className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Edit Product Modal */}
       <EditProductModal

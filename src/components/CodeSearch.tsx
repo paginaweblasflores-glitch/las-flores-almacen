@@ -3,24 +3,36 @@ import { useStore } from "../store";
 import type { Movement, InventoryItem } from "../types";
 import EditProductModal from "./EditProductModal";
 import EditMovementModal from "./EditMovementModal";
+import { filtrarBusqueda, normalizar } from "../utils/search";
 
 export default function CodeSearch() {
   const { movements, inventory, deleteProduct, deleteMovement } = useStore();
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState(false);
+  const [pickedCode, setPickedCode] = useState<string | null>(null);
   const [confirmDeleteProduct, setConfirmDeleteProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InventoryItem | null>(null);
   const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
 
-  const code = query.trim().toUpperCase();
-  const item = inventory.find((i) => i.codigo.toUpperCase() === code);
-  const history = movements.filter((m) => m.codigo.toUpperCase() === code);
+  const matches = searched
+    ? filtrarBusqueda(inventory, query, (i) => i.codigo, (i) => i.descripcion)
+    : [];
+  const item: InventoryItem | null = pickedCode
+    ? inventory.find((i) => i.codigo === pickedCode) ?? null
+    : matches.length === 1
+    ? matches[0]
+    : null;
+
+  const history = item
+    ? movements.filter((m) => normalizar(m.codigo) === normalizar(item.codigo))
+    : [];
   const histEntradas = history.filter((m) => m.tipo === "Entrada");
   const histSalidas = history.filter((m) => m.tipo === "Salida");
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setSearched(true);
+    setPickedCode(null);
     setConfirmDeleteProduct(false);
   }
 
@@ -34,25 +46,50 @@ export default function CodeSearch() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-2xl font-bold text-stone-900">Búsqueda por Código</h1>
-        <p className="text-sm text-stone-400 mt-0.5">Localiza un producto por su código único</p>
+        <h1 className="text-2xl font-bold text-stone-900">Buscar producto</h1>
+        <p className="text-sm text-stone-400 mt-0.5">Por código exacto o por nombre</p>
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2 max-w-md">
         <input
           value={query}
-          onChange={(e) => { setQuery(e.target.value); setSearched(false); setConfirmDeleteProduct(false); }}
-          placeholder="Ingrese el código (ej. A001)"
-          className="input font-mono uppercase flex-1"
+          onChange={(e) => { setQuery(e.target.value); setSearched(false); setPickedCode(null); setConfirmDeleteProduct(false); }}
+          placeholder="Ej. 105  ·  copa asa irlandes"
+          className="input flex-1"
         />
         <button type="submit" className="px-4 py-2 bg-stone-900 text-white text-sm font-semibold rounded-lg hover:bg-stone-800 transition-colors cursor-pointer">
           Buscar
         </button>
       </form>
 
-      {searched && !item && (
+      {searched && matches.length === 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700">
-          No se encontró ningún producto con el código <span className="font-mono font-bold">{code}</span>.
+          No se encontró ningún producto para <span className="font-mono font-bold">{query.trim()}</span>.
+        </div>
+      )}
+
+      {searched && !item && matches.length > 1 && (
+        <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
+          <div className="px-4 py-3 border-b border-stone-100 text-xs text-stone-500">
+            {matches.length} productos coinciden — elige uno
+          </div>
+          <ul className="divide-y divide-stone-50 max-h-96 overflow-auto">
+            {matches.map((m) => (
+              <li key={m.codigo}>
+                <button
+                  type="button"
+                  onClick={() => setPickedCode(m.codigo)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-stone-50 cursor-pointer"
+                >
+                  <span className="font-mono text-xs text-brand-700 bg-brand-50 px-2 py-0.5 rounded font-semibold">{m.codigo}</span>
+                  <span className="text-sm text-stone-800 flex-1 truncate">{m.descripcion}</span>
+                  <span className={`text-xs font-mono ${m.cantidadDisponible <= 0 ? "text-brand-600" : "text-stone-500"}`}>
+                    {m.cantidadDisponible} {m.unidadMedida || "UNID"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
