@@ -7,6 +7,20 @@ import { filtrarBusqueda, normalizar } from "../utils/search";
 
 const PAGE_SIZE = 25;
 
+// Orden del inventario: por código, del más alto al más bajo (el último
+// producto registrado queda en la primera fila). Los códigos numéricos van
+// primero, ordenados como números; los no numéricos, al final.
+function compararCodigoDesc(a: string, b: string): number {
+  const na = Number(a.trim());
+  const nb = Number(b.trim());
+  const aEsNum = a.trim() !== "" && !Number.isNaN(na);
+  const bEsNum = b.trim() !== "" && !Number.isNaN(nb);
+  if (aEsNum && bEsNum) return nb - na;
+  if (aEsNum) return -1;
+  if (bEsNum) return 1;
+  return b.localeCompare(a);
+}
+
 export default function Inventory() {
   const { inventory, categories, deleteProduct } = useStore();
   const [search, setSearch] = useState("");
@@ -25,10 +39,13 @@ export default function Inventory() {
     (i) => i.codigo,
     (i) => `${i.descripcion} ${i.area} ${i.categoria ?? ""}`,
   );
-  const filtered =
+  const filtered = (
     selectedCategory === "Todas"
       ? bySearch
-      : bySearch.filter((i) => normalizar(i.categoria ?? "") === normalizar(selectedCategory));
+      : bySearch.filter((i) => normalizar(i.categoria ?? "") === normalizar(selectedCategory))
+  )
+    .slice()
+    .sort((a, b) => compararCodigoDesc(a.codigo, b.codigo));
 
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
