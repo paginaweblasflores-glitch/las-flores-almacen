@@ -526,7 +526,7 @@ export default function MovementCart({ tipo }: Props) {
             </div>
 
             <div style={{ textAlign: "center", borderTop: "1px dashed #000", marginTop: "10px", paddingTop: "5px", fontSize: "9px", fontWeight: 700, color: "#000" }}>
-              Sistema Almacén · Restaurante Las Flores
+              Sistema Almacén · Corporación Las Flores
             </div>
 
             <br />
