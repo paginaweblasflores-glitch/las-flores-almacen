@@ -124,9 +124,8 @@ body {
 /*  Modelo: Star Micronics BSC10 · 203dpi · 72mm imprimible · 576px  */
 /* ------------------------------------------------------------------ */
 
-/* Ocultar el portal y los bloques solo-impresión en pantalla normal */
-.ticket-portal,
-.print-only {
+/* Ocultar el portal del comprobante en pantalla normal (solo se ve al imprimir) */
+.ticket-portal {
   display: none;
 }
 

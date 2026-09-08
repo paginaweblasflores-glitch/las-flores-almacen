@@ -21,7 +21,7 @@ function soles(n: number): string {
 
 function KPICard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
   return (
-    <div className="report-section bg-white border border-stone-200 rounded-lg p-4 flex flex-col gap-1 shadow-xs">
+    <div className="bg-white border border-stone-200 rounded-lg p-4 flex flex-col gap-1 shadow-xs">
       <span className="text-xs font-medium uppercase tracking-wider text-stone-400">{label}</span>
       <span className={`text-2xl font-bold ${accent ?? "text-stone-900"}`}>{value}</span>
       {sub && <span className="text-xs text-stone-400">{sub}</span>}
@@ -31,7 +31,7 @@ function KPICard({ label, value, sub, accent }: { label: string; value: string |
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="report-section bg-white border border-stone-200 rounded-xl shadow-xs overflow-hidden">
+    <div className="bg-white border border-stone-200 rounded-xl shadow-xs overflow-hidden">
       <div className="px-5 py-3.5 border-b border-stone-100">
         <h2 className="text-sm font-bold text-stone-800 uppercase tracking-wider">{title}</h2>
       </div>
@@ -282,19 +282,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* Cabecera del reporte (solo impresión) */}
-      <div className="print-only mb-2">
-        <div className="flex items-center gap-3 border-b-2 border-stone-800 pb-3">
-          <img src="/logo.png" alt="Las Flores" className="w-12 h-12 object-contain" />
-          <div>
-            <p className="font-serif text-lg font-bold text-stone-900">Reporte de Almacén — Restaurante Las Flores</p>
-            <p className="text-xs text-stone-500">
-              Generado el {now.toLocaleDateString("es-PE")} a las {now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Encabezado en pantalla */}
       <div className="no-print flex items-start justify-between gap-4 flex-wrap">
@@ -549,10 +536,6 @@ export default function Dashboard() {
           </div>
         )}
       </SectionCard>
-
-      <p className="print-only text-[10px] text-stone-400 text-center pt-2 border-t border-stone-200">
-        Sistema Almacén · Restaurante Las Flores — reporte generado automáticamente
-      </p>
     </div>
   );
 }

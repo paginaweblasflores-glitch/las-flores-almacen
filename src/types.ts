@@ -8,8 +8,6 @@ export const DEFAULT_CATEGORIES = [
   "Seguridad",
 ] as const;
 
-export type DefaultCategory = (typeof DEFAULT_CATEGORIES)[number];
-
 export const AREAS = [
   "Limpieza",
   "Almuerzo",
@@ -39,8 +37,6 @@ export const AREAS = [
   "pared",
 ] as const;
 
-export type Area = (typeof AREAS)[number];
-
 export const UNIDADES_MEDIDA = [
   "UNID",
   "PAQ",
@@ -58,8 +54,6 @@ export const UNIDADES_MEDIDA = [
   "BALDE",
   "BOLSA",
 ] as const;
-
-export type UnidadMedida = (typeof UNIDADES_MEDIDA)[number];
 
 export interface Movement {
   id: string;
