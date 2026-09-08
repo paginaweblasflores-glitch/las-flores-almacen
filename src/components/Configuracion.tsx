@@ -4,7 +4,7 @@ import { useToast } from "../toast";
 import { LOGIN_USERNAME, supabase } from "../supabaseClient";
 import { descargarHoja, movimientoAFila } from "../utils/excel";
 
-export default function Configuracion() {
+export default function Configuracion({ onVerGuiaCierre }: { onVerGuiaCierre: () => void }) {
   const { inventory, movements, clearAll, cerrarAnio } = useStore();
   const toast = useToast();
 
@@ -207,6 +207,16 @@ export default function Configuracion() {
             cambian</strong>: solo se comprime el historial para que la base siga liviana. El detalle
             archivado se descarga en un Excel antes de borrar nada.
           </p>
+
+          <button
+            onClick={onVerGuiaCierre}
+            className="self-start text-sm text-brand-600 hover:text-brand-800 font-medium inline-flex items-center gap-1 cursor-pointer"
+          >
+            Más detalles: cómo se hace el cierre paso a paso
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
 
           {cierreResumen ? (
             <div className="text-xs text-leaf-800 bg-leaf-50 border border-leaf-200 rounded-lg px-3 py-2.5 flex items-center gap-2">

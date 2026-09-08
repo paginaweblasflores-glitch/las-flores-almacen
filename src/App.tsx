@@ -9,9 +9,10 @@ import Exits from "./components/Exits";
 import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
 import Configuracion from "./components/Configuracion";
+import GuiaCierreAnual from "./components/GuiaCierreAnual";
 import { supabase } from "./supabaseClient";
 
-type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "buscar" | "exportar" | "configuracion";
+type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "buscar" | "exportar" | "configuracion" | "guia-cierre";
 
 const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   {
@@ -56,7 +57,7 @@ const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-function PageContent({ page }: { page: Page }) {
+function PageContent({ page, setPage }: { page: Page; setPage: (p: Page) => void }) {
   if (page === "inicio") return <Dashboard />;
   if (page === "registrar") return <Registrar />;
   if (page === "inventario") return <Inventory />;
@@ -64,7 +65,8 @@ function PageContent({ page }: { page: Page }) {
   if (page === "salidas") return <Exits />;
   if (page === "buscar") return <CodeSearch />;
   if (page === "exportar") return <ExportExcel />;
-  if (page === "configuracion") return <Configuracion />;
+  if (page === "configuracion") return <Configuracion onVerGuiaCierre={() => setPage("guia-cierre")} />;
+  if (page === "guia-cierre") return <GuiaCierreAnual onBack={() => setPage("configuracion")} />;
   return null;
 }
 
@@ -194,7 +196,7 @@ export default function App() {
         {/* Main */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-6xl mx-auto px-4 sm:px-5 py-5 sm:py-6">
-            <PageContent page={page} />
+            <PageContent page={page} setPage={setPage} />
           </div>
         </main>
       </div>
