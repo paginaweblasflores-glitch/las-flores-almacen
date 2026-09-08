@@ -169,7 +169,7 @@ export default function MovementCart({ tipo }: Props) {
       setTicket({
         fecha,
         area: areaDestino,
-        responsable: responsable.trim(),
+        responsable: responsable.trim().toUpperCase(),
         items: lines.map((l) => ({
           codigo: l.codigo,
           descripcion: l.descripcion,
@@ -432,7 +432,7 @@ export default function MovementCart({ tipo }: Props) {
             <div className="text-xs text-stone-500 flex flex-col gap-0.5">
               <span>Fecha: {fecha.split("-").reverse().join("/")}</span>
               {esSalida && <span>Área destino: {areaDestino}</span>}
-              {esSalida && <span>Responsable: {responsable.trim()}</span>}
+              {esSalida && <span>Responsable: {responsable.trim().toUpperCase()}</span>}
               {esSalida && <span className="text-stone-400">Se imprimirá un comprobante.</span>}
             </div>
             {error && (

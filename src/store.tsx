@@ -125,7 +125,7 @@ function movementFromRow(row: Record<string, unknown>): Movement {
     stockMinimo: row.stock_minimo != null ? Number(row.stock_minimo) : 0,
     valor,
     fecha: String(row.fecha),
-    responsable: String(row.responsable),
+    responsable: String(row.responsable).toUpperCase(),
     area: String(row.area),
     categoria: row.categoria ? String(row.categoria) : undefined,
     tipo: row.tipo as Movement["tipo"],
@@ -219,7 +219,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        return (JSON.parse(saved) as Movement[]).map((m) => ({
+          ...m,
+          responsable: (m.responsable ?? "").toUpperCase(),
+        }));
       }
     } catch (e) {
       console.error("Error reading movements from localStorage:", e);
@@ -333,6 +336,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       costo,
       stockMinimo: m.stockMinimo ?? 0,
       valor: m.valor ?? costo * m.cantidad,
+      responsable: m.responsable.toUpperCase().trim(),
       categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
       id: crypto.randomUUID(),
     };
@@ -377,6 +381,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         costo,
         stockMinimo: m.stockMinimo ?? 0,
         valor: m.valor ?? costo * m.cantidad,
+        responsable: m.responsable.toUpperCase().trim(),
         categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
         id: crypto.randomUUID(),
       };
@@ -423,6 +428,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       costo,
       stockMinimo: updated.stockMinimo ?? 0,
       valor: updated.valor ?? costo * updated.cantidad,
+      responsable: updated.responsable.toUpperCase().trim(),
       categoria: updated.categoria || categories[0] || DEFAULT_CATEGORIES[0],
       id,
     };
