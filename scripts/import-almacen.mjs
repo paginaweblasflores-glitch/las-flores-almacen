@@ -85,11 +85,11 @@ entradasRows.forEach((row, i) => {
     stock_minimo: 0,
     valor: costo * cantidad,
     fecha: excelSerialToISO(row.FECHA),
-    responsable: "Importación Excel",
+    responsable: "",
     area: AREA_ENTRADA,
     categoria: CATEGORIA_DEFECTO,
     imagen: null,
-    motivo: "Importación del Excel de inventario",
+    motivo: null,
     tipo: "Entrada",
   });
 });
@@ -103,7 +103,7 @@ salidasRows.forEach((row, i) => {
     return;
   }
   const costo = num(row.COSTO);
-  const responsable = row.RESPOSABLE ? String(row.RESPOSABLE).trim() : "Importación Excel";
+  const responsable = row.RESPOSABLE ? String(row.RESPOSABLE).trim().toUpperCase() : "";
   movements.push({
     id: `xlsm-sal-${i}`,
     codigo,
@@ -114,11 +114,11 @@ salidasRows.forEach((row, i) => {
     stock_minimo: 0,
     valor: costo * cantidad,
     fecha: excelSerialToISO(row.FECHA),
-    responsable: responsable || "Importación Excel",
+    responsable,
     area: row["AREA DESTINO"] ? titleCase(row["AREA DESTINO"]) : AREA_ENTRADA,
     categoria: CATEGORIA_DEFECTO,
     imagen: null,
-    motivo: "Salida importada del Excel de inventario",
+    motivo: null,
     tipo: "Salida",
   });
 });
