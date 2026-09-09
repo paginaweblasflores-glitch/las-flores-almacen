@@ -18,6 +18,7 @@ export default function Exits() {
 
       <MovementsTable
         movements={salidas}
+        tipo="Salida"
         title="Historial de salidas"
         subtitle={`${salidas.length} registros de retiro del almacén`}
         emptyMsg="No hay salidas registradas."

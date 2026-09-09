@@ -233,6 +233,7 @@ function HistTable({
   onEdit: (m: Movement) => void;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { numeros } = useStore();
 
   return (
     <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
@@ -245,6 +246,7 @@ function HistTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider">
+              <th className="text-left px-3 py-2 whitespace-nowrap">N° de {tipo}</th>
               <th className="text-right px-3 py-2">Cantidad</th>
               <th className="text-right px-3 py-2">Valor</th>
               <th className="text-left px-3 py-2">Fecha</th>
@@ -255,6 +257,7 @@ function HistTable({
           <tbody className="divide-y divide-stone-50">
             {rows.map((r) => (
               <tr key={r.id} className="hover:bg-stone-50/60 transition-colors">
+                <td className="px-3 py-2.5 font-mono text-xs font-semibold text-stone-500 whitespace-nowrap">{numeros.get(r.id) ?? "—"}</td>
                 <td className="px-3 py-2.5 text-right font-mono text-stone-700">{r.cantidad}</td>
                   <td className="px-3 py-2.5 text-right font-mono text-stone-600">S/ {r.valor.toFixed(2)}</td>
                 <td className="px-3 py-2.5 text-stone-500">{r.fecha.split("-").reverse().join("/")}</td>
@@ -301,7 +304,7 @@ function HistTable({
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-stone-400 text-xs">Sin registros</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-stone-400 text-xs">Sin registros</td></tr>
             )}
           </tbody>
         </table>

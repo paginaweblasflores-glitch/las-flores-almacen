@@ -18,6 +18,7 @@ export default function Entries() {
 
       <MovementsTable
         movements={entradas}
+        tipo="Entrada"
         title="Historial de entradas"
         subtitle={`${entradas.length} registros de ingreso al almacén`}
         emptyMsg="No hay entradas registradas."

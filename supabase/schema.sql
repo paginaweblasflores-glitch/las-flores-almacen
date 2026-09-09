@@ -26,8 +26,28 @@ create table if not exists public.movements (
 create index if not exists movements_codigo_idx on public.movements (upper(trim(codigo)));
 create index if not exists movements_fecha_idx on public.movements (fecha);
 
+-- Copia congelada de cada registro (número correlativo + lista de productos
+-- tal como se registró / imprimió). No cambia aunque se edite o borre un movimiento.
+create table if not exists public.comprobantes (
+  id            text primary key,
+  tipo          text not null check (tipo in ('Entrada', 'Salida')),
+  numero        integer not null,
+  periodo       text not null,             -- año; el correlativo reinicia cada año
+  fecha         date not null,
+  area          text not null,
+  responsable   text not null,
+  observaciones text,
+  items         jsonb not null default '[]'::jsonb,
+  movement_ids  text[] not null default '{}',
+  created_at    timestamptz not null default now(),
+  unique (tipo, periodo, numero)
+);
+
+create index if not exists comprobantes_created_at_idx on public.comprobantes (created_at);
+
 alter table public.categories enable row level security;
 alter table public.movements enable row level security;
+alter table public.comprobantes enable row level security;
 
 drop policy if exists "categories_public_access" on public.categories;
 create policy "categories_public_access"
@@ -39,6 +59,13 @@ create policy "categories_public_access"
 drop policy if exists "movements_public_access" on public.movements;
 create policy "movements_public_access"
   on public.movements for all
+  to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "comprobantes_public_access" on public.comprobantes;
+create policy "comprobantes_public_access"
+  on public.comprobantes for all
   to authenticated
   using (true)
   with check (true);

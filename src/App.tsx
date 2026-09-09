@@ -9,10 +9,11 @@ import Exits from "./components/Exits";
 import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
 import Configuracion from "./components/Configuracion";
+import Comprobantes from "./components/Comprobantes";
 import GuiaCierreAnual from "./components/GuiaCierreAnual";
 import { supabase } from "./supabaseClient";
 
-type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "buscar" | "exportar" | "configuracion" | "guia-cierre";
+type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "comprobantes" | "buscar" | "exportar" | "configuracion" | "guia-cierre";
 
 const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   {
@@ -41,6 +42,11 @@ const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>,
   },
   {
+    id: "comprobantes",
+    label: "Comprobantes",
+    icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+  },
+  {
     id: "buscar",
     label: "Buscar producto",
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
@@ -63,6 +69,7 @@ function PageContent({ page, setPage }: { page: Page; setPage: (p: Page) => void
   if (page === "inventario") return <Inventory />;
   if (page === "entradas") return <Entries />;
   if (page === "salidas") return <Exits />;
+  if (page === "comprobantes") return <Comprobantes />;
   if (page === "buscar") return <CodeSearch />;
   if (page === "exportar") return <ExportExcel />;
   if (page === "configuracion") return <Configuracion onVerGuiaCierre={() => setPage("guia-cierre")} />;

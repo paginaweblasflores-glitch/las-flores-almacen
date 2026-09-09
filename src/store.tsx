@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import type { Movement, InventoryItem } from "./types";
+import type { Movement, InventoryItem, MovementType, Comprobante } from "./types";
 import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "./types";
 import { supabase } from "./supabaseClient";
 import { useToast } from "./toast";
@@ -131,6 +131,65 @@ function movementFromRow(row: Record<string, unknown>): Movement {
     tipo: row.tipo as Movement["tipo"],
     imagen: row.imagen ? String(row.imagen) : undefined,
     motivo: row.motivo ? String(row.motivo) : undefined,
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+  };
+}
+
+const PREFIJO = { Entrada: "E", Salida: "S" } as const;
+
+export function etiquetaComprobante(c: Comprobante): string {
+  return `${PREFIJO[c.tipo]}-${c.numero}`;
+}
+
+// id de movimiento -> "E-1" / "S-1", tomado de los comprobantes guardados.
+export function calcularNumeros(comprobantes: Comprobante[]): Map<string, string> {
+  const res = new Map<string, string>();
+  for (const c of comprobantes) {
+    const label = etiquetaComprobante(c);
+    for (const mid of c.movementIds) res.set(mid, label);
+  }
+  return res;
+}
+
+function comprobanteFromRow(row: Record<string, unknown>): Comprobante {
+  const rawItems = Array.isArray(row.items) ? (row.items as Record<string, unknown>[]) : [];
+  return {
+    id: String(row.id),
+    tipo: row.tipo as MovementType,
+    numero: Number(row.numero),
+    periodo: String(row.periodo),
+    fecha: String(row.fecha),
+    area: String(row.area),
+    responsable: String(row.responsable),
+    observaciones: row.observaciones ? String(row.observaciones) : undefined,
+    items: rawItems.map((it) => ({
+      codigo: String(it.codigo ?? ""),
+      descripcion: String(it.descripcion ?? ""),
+      cantidad: Number(it.cantidad ?? 0),
+      unidadMedida: String(it.unidad_medida ?? it.unidadMedida ?? "UNID"),
+    })),
+    movementIds: Array.isArray(row.movement_ids) ? (row.movement_ids as unknown[]).map(String) : [],
+    createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
+  };
+}
+
+function comprobanteToRow(c: Comprobante) {
+  return {
+    id: c.id,
+    tipo: c.tipo,
+    numero: c.numero,
+    periodo: c.periodo,
+    fecha: c.fecha,
+    area: c.area,
+    responsable: c.responsable,
+    observaciones: c.observaciones ?? null,
+    items: c.items.map((it) => ({
+      codigo: it.codigo,
+      descripcion: it.descripcion,
+      cantidad: it.cantidad,
+      unidad_medida: it.unidadMedida,
+    })),
+    movement_ids: c.movementIds,
   };
 }
 
@@ -176,6 +235,9 @@ export type MovementInput = Omit<Movement, "id" | "costo" | "stockMinimo" | "val
 interface StoreCtx {
   movements: Movement[];
   inventory: InventoryItem[];
+  comprobantes: Comprobante[];
+  numeros: Map<string, string>;         // id de movimiento -> "E-1" / "S-1"
+  proximoNumero: (tipo: MovementType) => string; // el que le tocará al próximo registro
   categories: string[];
   unidades: string[];
   areas: string[];
@@ -238,6 +300,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [dbCategories]);
 
+  const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(movements));
@@ -269,10 +333,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return { data: rows, error: null as null };
     }
 
+    async function fetchAllComprobantes() {
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client!
+          .from("comprobantes")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+      }
+      return { data: rows, error: null as null };
+    }
+
     async function loadFromSupabase() {
-      const [movementResult, categoryResult] = await Promise.all([
+      const [movementResult, categoryResult, comprobanteResult] = await Promise.all([
         fetchAllMovements(),
         client!.from("categories").select("name").order("name"),
+        fetchAllComprobantes(),
       ]);
 
       if (movementResult.error) {
@@ -280,6 +361,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast.error("No se pudieron cargar los movimientos. Revisa tu conexión.");
       } else {
         setMovements((movementResult.data ?? []).map(movementFromRow));
+      }
+
+      if (comprobanteResult.error) {
+        console.error("Error cargando comprobantes desde Supabase:", comprobanteResult.error);
+      } else {
+        setComprobantes((comprobanteResult.data ?? []).map(comprobanteFromRow));
       }
 
       if (categoryResult.error) {
@@ -294,6 +381,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
+  const numeros = calcularNumeros(comprobantes);
+
+  // Entero que le tocará al próximo comprobante de ese tipo, dentro del año en curso.
+  function siguienteNumeroInt(tipo: MovementType): number {
+    const periodo = String(new Date().getFullYear());
+    return (
+      comprobantes
+        .filter((c) => c.tipo === tipo && c.periodo === periodo)
+        .reduce((mx, c) => Math.max(mx, c.numero), 0) + 1
+    );
+  }
+
+  function proximoNumero(tipo: MovementType): string {
+    return `${PREFIJO[tipo]}-${siguienteNumeroInt(tipo)}`;
+  }
+
+  // Arma el comprobante congelado de un registro a partir de sus movimientos.
+  function construirComprobante(ms: Movement[]): Comprobante {
+    return {
+      id: crypto.randomUUID(),
+      tipo: ms[0].tipo,
+      numero: siguienteNumeroInt(ms[0].tipo),
+      periodo: String(new Date().getFullYear()),
+      fecha: ms[0].fecha,
+      area: ms[0].area,
+      responsable: ms[0].responsable,
+      observaciones: ms[0].motivo || undefined,
+      items: ms.map((m) => ({
+        codigo: m.codigo,
+        descripcion: m.descripcion,
+        cantidad: m.cantidad,
+        unidadMedida: m.unidadMedida || "UNID",
+      })),
+      movementIds: ms.map((m) => m.id),
+      createdAt: ms[0].createdAt ?? new Date().toISOString(),
+    };
+  }
+
+  // Guarda el comprobante en Supabase después de que sus movimientos ya se
+  // guardaron. Si falla, quita el comprobante optimista (los movimientos
+  // quedan, pero sin número) y avisa.
+  function persistirComprobante(comp: Comprobante) {
+    if (!supabase) return;
+    void supabase
+      .from("comprobantes")
+      .insert(comprobanteToRow(comp))
+      .then(({ error }) => {
+        if (error) {
+          console.error("Error guardando comprobante en Supabase:", error);
+          setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
+          toast.error(
+            `Los movimientos se guardaron, pero no el comprobante ${etiquetaComprobante(comp)}.`,
+          );
+        }
+      });
+  }
 
   // Listas para los desplegables editables: valores por defecto + los que
   // ya se hayan usado en algún movimiento. Al escribir uno nuevo y guardar,
@@ -339,15 +482,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       responsable: m.responsable.toUpperCase().trim(),
       categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
       id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
     };
+    const comp = construirComprobante([newM]);
     setMovements((prev) => [...prev, newM]);
+    setComprobantes((prev) => [...prev, comp]);
     if (supabase) {
       void supabase.from("movements").insert(movementToRow(newM)).then(({ error }) => {
         if (error) {
           console.error("Error guardando movimiento en Supabase:", error);
+          setMovements((prev) => prev.filter((x) => x.id !== newM.id));
+          setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
           toast.error("El movimiento no se guardó en el servidor. Vuelve a intentarlo.");
         } else {
-          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada.`);
+          persistirComprobante(comp);
+          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada (${etiquetaComprobante(comp)}).`);
         }
       });
     }
@@ -374,6 +523,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       running.set(key, restante);
     }
 
+    // Un solo created_at para todo el lote: comparten número de documento.
+    const loteCreatedAt = new Date().toISOString();
     const newMs: Movement[] = list.map((m) => {
       const costo = m.costo ?? (m.valor && m.cantidad > 0 ? m.valor / m.cantidad : 0);
       return {
@@ -384,11 +535,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         responsable: m.responsable.toUpperCase().trim(),
         categoria: m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
         id: crypto.randomUUID(),
+        createdAt: loteCreatedAt,
       };
     });
     const newIds = new Set(newMs.map((m) => m.id));
+    const comp = construirComprobante(newMs);
 
     setMovements((prev) => [...prev, ...newMs]);
+    setComprobantes((prev) => [...prev, comp]);
 
     if (supabase) {
       const tipo = list[0].tipo;
@@ -399,11 +553,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (error) {
             console.error("Error guardando movimientos en Supabase:", error);
             setMovements((prev) => prev.filter((m) => !newIds.has(m.id)));
+            setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
             toast.error(
               `No se guardaron los ${newMs.length} movimientos. Vuelve a intentarlo.`
             );
           } else {
-            toast.success(`${newMs.length} movimiento(s) de ${tipo} guardados.`);
+            persistirComprobante(comp);
+            toast.success(
+              `${newMs.length} movimiento(s) de ${tipo} guardados (${etiquetaComprobante(comp)}).`,
+            );
           }
         });
     }
@@ -516,7 +674,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // mitad, un nuevo intento NO vuelve a crear saldos (ya existen): solo repite
   // el borrado de lo que quedó, así no hay doble conteo.
   async function cerrarAnio(anio: number): Promise<CierreResult> {
-    const { marca, archivados, saldos } = construirCierre(movements, anio);
+    const { corte, marca, archivados, saldos } = construirCierre(movements, anio);
     if (archivados.length === 0) {
       return {
         error: `No hay movimientos con fecha del ${anio} o de años anteriores.`,
@@ -581,6 +739,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // 3) Éxito: reflejar en el estado local.
     const idSet = new Set(ids);
     setMovements((prev) => prev.filter((m) => !idSet.has(m.id)));
+
+    // 4) Limpiar también los comprobantes del periodo cerrado (best-effort: la
+    //    numeración del año nuevo ya reinicia por `periodo`, esto es housekeeping).
+    const compIds = comprobantes.filter((c) => c.fecha <= corte).map((c) => c.id);
+    if (compIds.length) {
+      setComprobantes((prev) => prev.filter((c) => c.fecha > corte));
+      if (supabase) {
+        for (let i = 0; i < compIds.length; i += 150) {
+          const { error } = await supabase
+            .from("comprobantes")
+            .delete()
+            .in("id", compIds.slice(i, i + 150));
+          if (error) {
+            console.error("Cierre anual: error borrando comprobantes del periodo", error);
+            break;
+          }
+        }
+      }
+    }
+
     return {
       error: null,
       archivados: archivados.length,
@@ -591,7 +769,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   function clearAll() {
     setMovements([]);
+    setComprobantes([]);
     if (supabase) {
+      void supabase.from("comprobantes").delete().neq("id", "").then(({ error }) => {
+        if (error) console.error("Error limpiando comprobantes en Supabase:", error);
+      });
       void supabase.from("movements").delete().neq("id", "").then(({ error }) => {
         if (error) {
           console.error("Error limpiando movimientos en Supabase:", error);
@@ -613,6 +795,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       value={{
         movements,
         inventory,
+        comprobantes,
+        numeros,
+        proximoNumero,
         categories,
         unidades,
         areas,
