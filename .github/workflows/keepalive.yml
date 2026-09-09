@@ -1,36 +1,65 @@
 # Mantiene despierto el proyecto de Supabase (plan gratuito: se pausa tras
-# 7 días sin actividad de API). Hace UNA consulta de solo lectura por día.
+# 7 días sin actividad de API). Hace UNA petición de solo lectura por día.
 # No escribe nada, no toca movimientos ni stock.
 #
 # Requiere dos "secrets" en el repositorio
-# (Settings → Secrets and variables → Actions):
-#   SUPABASE_URL       = valor de VITE_SUPABASE_URL
-#   SUPABASE_ANON_KEY  = valor de VITE_SUPABASE_ANON_KEY  (clave pública)
+# (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_URL       = valor de VITE_SUPABASE_URL   (ej: https://xxxx.supabase.co)
+#   SUPABASE_ANON_KEY  = valor de VITE_SUPABASE_ANON_KEY  (clave publica)
 
 name: Keep Supabase alive
 
 on:
   schedule:
-    - cron: "17 6 * * *" # todos los días a las 06:17 UTC
-  workflow_dispatch: {} # permite ejecutarlo a mano desde la pestaña Actions
+    - cron: "17 6 * * *" # todos los dias a las 06:17 UTC
+  workflow_dispatch: {} # permite ejecutarlo a mano desde la pestana Actions
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Consulta mínima de solo lectura
+      - name: Ping de solo lectura a Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
-            echo "Faltan los secrets SUPABASE_URL / SUPABASE_ANON_KEY en el repositorio."
+          set -u
+
+          # Limpia espacios, saltos de linea y barra final que se cuelan al pegar el secret.
+          url=$(printf '%s' "$SUPABASE_URL" | tr -d '[:space:]' | sed 's:/*$::')
+          key=$(printf '%s' "$SUPABASE_ANON_KEY" | tr -d '[:space:]')
+
+          if [ -z "$url" ] || [ -z "$key" ]; then
+            echo "::error::Faltan los secrets SUPABASE_URL / SUPABASE_ANON_KEY en el repositorio."
             exit 1
           fi
-          code=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/movements?select=id&limit=1")
+
+          echo "Host destino: $(printf '%s' "$url" | sed -E 's#^https?://##')"
+          echo "Longitud de la anon key: ${#key} caracteres"
+
+          endpoint="$url/rest/v1/movements?select=id&limit=1"
+          resp=$(curl -s -m 30 -w '\n%{http_code}' \
+            -H "apikey: $key" \
+            -H "Authorization: Bearer $key" \
+            "$endpoint")
+
+          code=$(printf '%s' "$resp" | tail -n1)
+          body=$(printf '%s' "$resp" | sed '$d' | head -c 300)
+
           echo "Respuesta HTTP: $code"
-          if [ "$code" != "200" ]; then
-            echo "El ping a Supabase no respondió 200. Revisa el proyecto."
+          echo "Cuerpo: $body"
+
+          if [ "$code" = "000" ]; then
+            echo "::error::No se pudo contactar a Supabase. Revisa que SUPABASE_URL sea https://<ref>.supabase.co (sin /rest ni barra final)."
             exit 1
           fi
-          echo "Supabase respondió OK — proyecto activo."
+
+          if [ "$code" = "200" ]; then
+            echo "OK - Supabase respondio 200. Proyecto activo."
+            exit 0
+          fi
+
+          # Cualquier otra respuesta (401, 404, etc.) igual toco el proyecto y
+          # reinicia el contador de inactividad, pero avisamos porque algo no cuadra.
+          echo "::warning::Supabase respondio $code (se esperaba 200). El ping igual mantiene vivo el proyecto, pero revisa la anon key o la URL."
+          exit 0
