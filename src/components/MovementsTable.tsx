@@ -16,6 +16,8 @@ interface Props {
 
 export default function MovementsTable({ movements, title, subtitle, emptyMsg = "No hay movimientos.", tipo }: Props) {
   const { deleteMovement, numeros } = useStore();
+  // Solo las salidas tienen número (comprobante); las entradas no.
+  const numeroCol = tipo === "Salida";
   const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -45,7 +47,7 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider [&>th]:bg-stone-50 [&>th]:border-b [&>th]:border-stone-200">
-                <th className="text-left px-4 py-3 whitespace-nowrap">{tipo ? `N° de ${tipo}` : "N°"}</th>
+                {numeroCol && <th className="text-left px-4 py-3 whitespace-nowrap">N° de Salida</th>}
                 <th className="text-left px-4 py-3">Código</th>
                 <th className="text-left px-4 py-3">Producto</th>
                 <th className="text-left px-4 py-3">Categoría</th>
@@ -61,7 +63,9 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
             <tbody className="divide-y divide-stone-50">
               {pageItems.map((m) => (
                 <tr key={m.id} className="hover:bg-stone-50/60 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs font-semibold text-stone-500 whitespace-nowrap">{numeros.get(m.id) ?? "—"}</td>
+                  {numeroCol && (
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-stone-500 whitespace-nowrap">{numeros.get(m.id) ?? "—"}</td>
+                  )}
                   <td className="px-4 py-3 font-mono text-xs text-brand-700">{m.codigo}</td>
                   <td className="px-4 py-3 text-stone-800 font-medium">
                     <div className="flex items-center gap-2.5">
@@ -142,7 +146,7 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
                 </tr>
               ))}
               {movements.length === 0 && (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-stone-400 text-sm">{emptyMsg}</td></tr>
+                <tr><td colSpan={numeroCol ? 11 : 10} className="px-4 py-8 text-center text-stone-400 text-sm">{emptyMsg}</td></tr>
               )}
             </tbody>
           </table>

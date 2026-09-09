@@ -484,19 +484,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
-    const comp = construirComprobante([newM]);
+    // Alta de producto nuevo = una Entrada. No genera comprobante: los
+    // comprobantes son solo copias de salidas impresas.
     setMovements((prev) => [...prev, newM]);
-    setComprobantes((prev) => [...prev, comp]);
     if (supabase) {
       void supabase.from("movements").insert(movementToRow(newM)).then(({ error }) => {
         if (error) {
           console.error("Error guardando movimiento en Supabase:", error);
           setMovements((prev) => prev.filter((x) => x.id !== newM.id));
-          setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
           toast.error("El movimiento no se guardó en el servidor. Vuelve a intentarlo.");
         } else {
-          persistirComprobante(comp);
-          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada (${etiquetaComprobante(comp)}).`);
+          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada.`);
         }
       });
     }
@@ -539,10 +537,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       };
     });
     const newIds = new Set(newMs.map((m) => m.id));
-    const comp = construirComprobante(newMs);
+    // Solo las salidas generan comprobante (copia de lo que se imprime).
+    const comp = list[0].tipo === "Salida" ? construirComprobante(newMs) : null;
 
     setMovements((prev) => [...prev, ...newMs]);
-    setComprobantes((prev) => [...prev, comp]);
+    if (comp) setComprobantes((prev) => [...prev, comp]);
 
     if (supabase) {
       const tipo = list[0].tipo;
@@ -553,14 +552,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (error) {
             console.error("Error guardando movimientos en Supabase:", error);
             setMovements((prev) => prev.filter((m) => !newIds.has(m.id)));
-            setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
+            if (comp) setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
             toast.error(
               `No se guardaron los ${newMs.length} movimientos. Vuelve a intentarlo.`
             );
           } else {
-            persistirComprobante(comp);
+            if (comp) persistirComprobante(comp);
             toast.success(
-              `${newMs.length} movimiento(s) de ${tipo} guardados (${etiquetaComprobante(comp)}).`,
+              comp
+                ? `${newMs.length} movimiento(s) de ${tipo} guardados (${etiquetaComprobante(comp)}).`
+                : `${newMs.length} movimiento(s) de ${tipo} guardados.`,
             );
           }
         });
