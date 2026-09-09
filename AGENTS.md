@@ -35,6 +35,7 @@ pnpm run preview  # sirve la compilación de dist/
 - `scripts/import-almacen.mjs` — importador puntual del inventario desde el Excel de Rio; lee `doc/…​.xlsm` (no versionado) o `IMPORT_XLSX`. Modos `--dry-run` y `--sql`
 - `vite.config.ts` — configuración de Vite (React, Tailwind v4, alias `@` → `src`)
 - `.mise.toml` — versiones de Node.js y pnpm
+- `.github/workflows/keepalive.yml` — cron diario que hace una consulta de solo lectura a Supabase para que el proyecto (plan gratuito) no se pause por 7 días de inactividad. Necesita los secrets `SUPABASE_URL` y `SUPABASE_ANON_KEY` en el repositorio.
 
 ## Estilos
 
