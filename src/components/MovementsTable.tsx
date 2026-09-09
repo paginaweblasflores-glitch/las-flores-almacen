@@ -16,8 +16,7 @@ interface Props {
 
 export default function MovementsTable({ movements, title, subtitle, emptyMsg = "No hay movimientos.", tipo }: Props) {
   const { deleteMovement, numeros } = useStore();
-  // Solo las salidas tienen número (comprobante); las entradas no.
-  const numeroCol = tipo === "Salida";
+  const numeroCol = tipo !== undefined; // "N° de Entrada" / "N° de Salida"
   const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -47,7 +46,7 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider [&>th]:bg-stone-50 [&>th]:border-b [&>th]:border-stone-200">
-                {numeroCol && <th className="text-left px-4 py-3 whitespace-nowrap">N° de Salida</th>}
+                {numeroCol && <th className="text-left px-4 py-3 whitespace-nowrap">N° de {tipo}</th>}
                 <th className="text-left px-4 py-3">Código</th>
                 <th className="text-left px-4 py-3">Producto</th>
                 <th className="text-left px-4 py-3">Categoría</th>

@@ -484,17 +484,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
-    // Alta de producto nuevo = una Entrada. No genera comprobante: los
-    // comprobantes son solo copias de salidas impresas.
+    // Alta de producto nuevo = una Entrada. Genera su comprobante (número
+    // E-N); las entradas NO se muestran en el módulo Comprobantes, ese es
+    // solo para las copias de salidas impresas.
+    const comp = construirComprobante([newM]);
     setMovements((prev) => [...prev, newM]);
+    setComprobantes((prev) => [...prev, comp]);
     if (supabase) {
       void supabase.from("movements").insert(movementToRow(newM)).then(({ error }) => {
         if (error) {
           console.error("Error guardando movimiento en Supabase:", error);
           setMovements((prev) => prev.filter((x) => x.id !== newM.id));
+          setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
           toast.error("El movimiento no se guardó en el servidor. Vuelve a intentarlo.");
         } else {
-          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada.`);
+          persistirComprobante(comp);
+          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada (${etiquetaComprobante(comp)}).`);
         }
       });
     }
@@ -537,11 +542,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       };
     });
     const newIds = new Set(newMs.map((m) => m.id));
-    // Solo las salidas generan comprobante (copia de lo que se imprime).
-    const comp = list[0].tipo === "Salida" ? construirComprobante(newMs) : null;
+    // Entradas y salidas generan comprobante (número E-N / S-N). La "copia"
+    // reimprimible del módulo Comprobantes es solo para salidas.
+    const comp = construirComprobante(newMs);
 
     setMovements((prev) => [...prev, ...newMs]);
-    if (comp) setComprobantes((prev) => [...prev, comp]);
+    setComprobantes((prev) => [...prev, comp]);
 
     if (supabase) {
       const tipo = list[0].tipo;
@@ -552,16 +558,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (error) {
             console.error("Error guardando movimientos en Supabase:", error);
             setMovements((prev) => prev.filter((m) => !newIds.has(m.id)));
-            if (comp) setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
+            setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
             toast.error(
               `No se guardaron los ${newMs.length} movimientos. Vuelve a intentarlo.`
             );
           } else {
-            if (comp) persistirComprobante(comp);
+            persistirComprobante(comp);
             toast.success(
-              comp
-                ? `${newMs.length} movimiento(s) de ${tipo} guardados (${etiquetaComprobante(comp)}).`
-                : `${newMs.length} movimiento(s) de ${tipo} guardados.`,
+              `${newMs.length} movimiento(s) de ${tipo} guardados (${etiquetaComprobante(comp)}).`,
             );
           }
         });
