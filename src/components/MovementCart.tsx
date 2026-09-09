@@ -516,17 +516,6 @@ export default function MovementCart({ tipo }: Props) {
               ))}
             </div>
 
-            {ticket.observaciones && (
-              <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
-                <div style={{ fontSize: "9px", fontWeight: 700, color: "#000", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
-                  Observaciones
-                </div>
-                <div style={{ fontSize: "11px", lineHeight: "1.5", fontWeight: 700, color: "#000", wordBreak: "break-word", overflowWrap: "break-word" }}>
-                  {ticket.observaciones}
-                </div>
-              </div>
-            )}
-
             <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
               <div
                 style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "10px", fontWeight: 700, color: "#000", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #000", paddingBottom: "3px", marginBottom: "4px" }}
@@ -549,7 +538,18 @@ export default function MovementCart({ tipo }: Props) {
               ))}
             </div>
 
-            <div style={{ textAlign: "center", paddingTop: "75px" }}>
+            {ticket.observaciones && (
+              <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
+                <div style={{ fontSize: "9px", fontWeight: 700, color: "#000", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
+                  Observaciones
+                </div>
+                <div style={{ fontSize: "11px", lineHeight: "1.5", fontWeight: 700, color: "#000", wordBreak: "break-word", overflowWrap: "break-word" }}>
+                  {ticket.observaciones}
+                </div>
+              </div>
+            )}
+
+            <div style={{ textAlign: "center", paddingTop: ticket.observaciones ? "55px" : "75px" }}>
               <div style={{ borderTop: "1px solid #000", width: "60%", margin: "0 auto 4px" }} />
               <div style={{ fontSize: "11px", fontWeight: 700, color: "#000" }}>{ticket.responsable}</div>
               <div style={{ fontSize: "9px", fontWeight: 700, color: "#000" }}>Firma de quien retira</div>
