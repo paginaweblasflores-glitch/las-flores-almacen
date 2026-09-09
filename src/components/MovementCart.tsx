@@ -505,7 +505,6 @@ export default function MovementCart({ tipo }: Props) {
               {[
                 ["Fecha", ticket.fecha.split("-").reverse().join("/")],
                 ["Área destino", ticket.area],
-                ...(ticket.observaciones ? [["Observaciones", ticket.observaciones]] : []),
               ].map(([label, value]) => (
                 <div
                   key={label}
@@ -516,6 +515,17 @@ export default function MovementCart({ tipo }: Props) {
                 </div>
               ))}
             </div>
+
+            {ticket.observaciones && (
+              <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
+                <div style={{ fontSize: "9px", fontWeight: 700, color: "#000", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
+                  Observaciones
+                </div>
+                <div style={{ fontSize: "11px", lineHeight: "1.5", fontWeight: 700, color: "#000", wordBreak: "break-word", overflowWrap: "break-word" }}>
+                  {ticket.observaciones}
+                </div>
+              </div>
+            )}
 
             <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
               <div
