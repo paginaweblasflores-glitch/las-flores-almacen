@@ -23,6 +23,7 @@ export default function MovementCart({ tipo }: Props) {
   // Solo la Salida usa área destino + responsable (así lo maneja el Excel de Rio).
   const [areaDestino, setAreaDestino] = useState<string>(areas[0] ?? AREAS[0]);
   const [responsable, setResponsable] = useState("");
+  const [observaciones, setObservaciones] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [ticket, setTicket] = useState<TicketData | null>(null);
   const [error, setError] = useState("");
@@ -157,6 +158,7 @@ export default function MovementCart({ tipo }: Props) {
       area: esSalida ? areaDestino : l.area || "Almacén 1",
       categoria: l.categoria,
       tipo,
+      motivo: esSalida && observaciones.trim() ? observaciones.trim() : undefined,
     }));
 
     const err = addMovements(inputs);
@@ -170,6 +172,7 @@ export default function MovementCart({ tipo }: Props) {
         fecha,
         area: areaDestino,
         responsable: responsable.trim().toUpperCase(),
+        observaciones: observaciones.trim() || undefined,
         items: lines.map((l) => ({
           codigo: l.codigo,
           descripcion: l.descripcion,
@@ -181,6 +184,7 @@ export default function MovementCart({ tipo }: Props) {
 
     setLines([]);
     setResponsable("");
+    setObservaciones("");
     setConfirmOpen(false);
     setError("");
   }
@@ -373,6 +377,20 @@ export default function MovementCart({ tipo }: Props) {
                   className="input"
                 />
               </div>
+
+              <div className="flex flex-col gap-1 sm:col-span-2">
+                <label htmlFor="cart-obs" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+                  Observaciones <span className="text-stone-400 font-normal lowercase">(opcional)</span>
+                </label>
+                <textarea
+                  id="cart-obs"
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  placeholder="Comentario sobre esta salida, si hace falta"
+                  rows={2}
+                  className="input resize-y"
+                />
+              </div>
             </>
           )}
         </div>
@@ -433,6 +451,7 @@ export default function MovementCart({ tipo }: Props) {
               <span>Fecha: {fecha.split("-").reverse().join("/")}</span>
               {esSalida && <span>Área destino: {areaDestino}</span>}
               {esSalida && <span>Responsable: {responsable.trim().toUpperCase()}</span>}
+              {esSalida && observaciones.trim() && <span>Observaciones: {observaciones.trim()}</span>}
               {esSalida && <span className="text-stone-400">Se imprimirá un comprobante.</span>}
             </div>
             {error && (
@@ -486,6 +505,7 @@ export default function MovementCart({ tipo }: Props) {
               {[
                 ["Fecha", ticket.fecha.split("-").reverse().join("/")],
                 ["Área destino", ticket.area],
+                ...(ticket.observaciones ? [["Observaciones", ticket.observaciones]] : []),
               ].map(([label, value]) => (
                 <div
                   key={label}

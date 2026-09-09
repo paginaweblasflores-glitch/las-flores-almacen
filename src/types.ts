@@ -105,6 +105,7 @@ export interface TicketData {
   fecha: string;
   area: string;          // área destino
   responsable: string;
+  observaciones?: string; // nota libre opcional
   items: { codigo: string; descripcion: string; cantidad: number; unidadMedida: string }[];
 }
 
