@@ -75,6 +75,39 @@ export default function NewProductEntryForm() {
     void procesarImagen(e.dataTransfer.files?.[0]);
   }
 
+  // Saca un archivo de imagen del portapapeles (captura de pantalla o
+  // "Copiar imagen"). Devuelve true si había una imagen y la procesó.
+  function imagenDelPortapapeles(cd: DataTransfer | null | undefined): boolean {
+    if (!cd || isUploadingImage) return false;
+    if (cd.files && cd.files.length > 0 && cd.files[0].type.startsWith("image/")) {
+      void procesarImagen(cd.files[0]);
+      return true;
+    }
+    for (const item of Array.from(cd.items ?? [])) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        void procesarImagen(item.getAsFile() ?? undefined);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Pegar (Ctrl+V) en cualquier parte del formulario, salvo mientras se
+  // escribe en un campo de texto.
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const el = document.activeElement;
+      const escribiendo =
+        el instanceof HTMLElement &&
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (escribiendo) return;
+      if (imagenDelPortapapeles(e.clipboardData)) e.preventDefault();
+    }
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUploadingImage]);
+
   function resetForm() {
     setForm(emptyForm(categories[0] || DEFAULT_CATEGORIES[0]));
     setAutoCodigo(true);
@@ -304,7 +337,7 @@ export default function NewProductEntryForm() {
             >
               Cambiar imagen
             </button>
-            <span className="text-[11px] text-stone-400 ml-auto hidden sm:block">o arrastra otra aquí</span>
+            <span className="text-[11px] text-stone-400 ml-auto hidden sm:block">o arrastra / pega (Ctrl+V) otra</span>
           </div>
         ) : (
           <button
@@ -331,7 +364,7 @@ export default function NewProductEntryForm() {
                 ? "Subiendo imagen..."
                 : dragOver
                 ? "Suelta la imagen para subirla"
-                : "Subir foto o arrastra la imagen aquí"}
+                : "Elegir archivo, arrastrar o pegar (Ctrl+V)"}
             </span>
           </button>
         )}
