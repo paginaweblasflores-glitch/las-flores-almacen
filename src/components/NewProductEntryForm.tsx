@@ -24,6 +24,7 @@ export default function NewProductEntryForm() {
   const [form, setForm] = useState(() => emptyForm(categories[0] || DEFAULT_CATEGORIES[0]));
   const [autoCodigo, setAutoCodigo] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,8 +46,7 @@ export default function NewProductEntryForm() {
     setSuccess("");
   }
 
-  async function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function procesarImagen(file: File | undefined) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       setError("Selecciona un archivo de imagen válido (JPG, PNG, WebP).");
@@ -62,6 +62,17 @@ export default function NewProductEntryForm() {
     } finally {
       setIsUploadingImage(false);
     }
+  }
+
+  function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    void procesarImagen(e.target.files?.[0]);
+  }
+
+  function handleImageDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (isUploadingImage) return;
+    void procesarImagen(e.dataTransfer.files?.[0]);
   }
 
   function resetForm() {
@@ -270,7 +281,17 @@ export default function NewProductEntryForm() {
           className="hidden"
         />
         {form.imagen ? (
-          <div className="flex items-center gap-3 p-2 bg-stone-50 border border-stone-200 rounded-lg">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleImageDrop}
+            className={`flex items-center gap-3 p-2 border rounded-lg transition-colors ${
+              dragOver ? "border-brand-500 bg-brand-50/60" : "bg-stone-50 border-stone-200"
+            }`}
+          >
             <img
               src={form.imagen}
               alt="Vista previa del producto"
@@ -283,18 +304,35 @@ export default function NewProductEntryForm() {
             >
               Cambiar imagen
             </button>
+            <span className="text-[11px] text-stone-400 ml-auto hidden sm:block">o arrastra otra aquí</span>
           </div>
         ) : (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleImageDrop}
             disabled={isUploadingImage}
-            className="w-full py-2.5 px-3 border border-dashed border-stone-300 hover:border-brand-500 hover:bg-brand-50/50 rounded-lg text-xs text-stone-600 flex items-center justify-center gap-2 transition-all cursor-pointer bg-stone-50/50"
+            className={`w-full py-3 px-3 border border-dashed rounded-lg text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              dragOver
+                ? "border-brand-500 bg-brand-50 text-brand-700"
+                : "border-stone-300 hover:border-brand-500 hover:bg-brand-50/50 text-stone-600 bg-stone-50/50"
+            }`}
           >
             <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <span>{isUploadingImage ? "Subiendo imagen..." : "Subir foto / imagen del producto"}</span>
+            <span>
+              {isUploadingImage
+                ? "Subiendo imagen..."
+                : dragOver
+                ? "Suelta la imagen para subirla"
+                : "Subir foto o arrastra la imagen aquí"}
+            </span>
           </button>
         )}
       </div>
