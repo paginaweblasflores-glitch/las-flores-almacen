@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES } from "../types";
 import type { Movement, MovementType } from "../types";
-import { uploadProductImage } from "../utils/storage";
 import ComboBox from "./ComboBox";
+import ImageUploadField from "./ImageUploadField";
 
 interface Props {
   movement: Movement | null;
@@ -12,7 +12,6 @@ interface Props {
 
 export default function EditMovementModal({ movement, onClose }: Props) {
   const { categories, unidades, areas, updateMovement } = useStore();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     codigo: "",
@@ -29,7 +28,6 @@ export default function EditMovementModal({ movement, onClose }: Props) {
     imagen: "",
   });
   const [error, setError] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (movement) {
@@ -52,28 +50,6 @@ export default function EditMovementModal({ movement, onClose }: Props) {
   }, [movement, categories]);
 
   if (!movement) return null;
-
-  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setError("Selecciona un archivo de imagen válido.");
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      const imagenUrl = await uploadProductImage(file);
-      setForm((prev) => ({ ...prev, imagen: imagenUrl }));
-      setError("");
-    } catch (err) {
-      console.error(err);
-      setError("Error al procesar la imagen.");
-    } finally {
-      setIsUploading(false);
-    }
-  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -289,54 +265,11 @@ export default function EditMovementModal({ movement, onClose }: Props) {
             </div>
           </div>
 
-          {/* Imagen */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">Imagen del producto</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-            />
-            {form.imagen ? (
-              <div className="flex items-center gap-3 p-2 bg-stone-50 border border-stone-200 rounded-lg">
-                <img
-                  src={form.imagen}
-                  alt="Vista previa"
-                  className="w-12 h-12 rounded-md object-cover border border-stone-200 flex-shrink-0"
-                />
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-xs text-brand-600 hover:text-brand-800 font-medium cursor-pointer"
-                  >
-                    Cambiar foto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, imagen: "" })}
-                    className="text-xs text-brand-500 hover:text-brand-700 font-medium cursor-pointer"
-                  >
-                    Quitar foto
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="w-full py-2.5 px-3 border border-dashed border-stone-300 hover:border-brand-500 rounded-lg text-xs text-stone-600 flex items-center justify-center gap-2 cursor-pointer bg-stone-50/50"
-              >
-                <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span>{isUploading ? "Procesando imagen..." : "Subir nueva foto"}</span>
-              </button>
-            )}
-          </div>
+          <ImageUploadField
+            value={form.imagen}
+            onChange={(url) => setForm({ ...form, imagen: url })}
+            onError={setError}
+          />
 
           {error && (
             <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg p-2.5 flex items-center gap-2">

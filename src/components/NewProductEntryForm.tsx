@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useStore } from "../store";
 import { AREAS, DEFAULT_CATEGORIES } from "../types";
-import { uploadProductImage } from "../utils/storage";
 import { normalizar } from "../utils/search";
 import ComboBox from "./ComboBox";
 import Field from "./Field";
+import ImageUploadField from "./ImageUploadField";
 
 const emptyForm = (defaultCat?: string) => ({
   codigo: "",
@@ -23,11 +23,9 @@ export default function NewProductEntryForm() {
   const { inventory, categories, unidades, areas, addMovement, nextCodigo } = useStore();
   const [form, setForm] = useState(() => emptyForm(categories[0] || DEFAULT_CATEGORIES[0]));
   const [autoCodigo, setAutoCodigo] = useState(true);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageFieldKey, setImageFieldKey] = useState(0);
 
   // Autonumeración del código mientras el usuario no lo haya editado a mano.
   useEffect(() => {
@@ -46,72 +44,10 @@ export default function NewProductEntryForm() {
     setSuccess("");
   }
 
-  async function procesarImagen(file: File | undefined) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Selecciona un archivo de imagen válido (JPG, PNG, WebP).");
-      return;
-    }
-    try {
-      setIsUploadingImage(true);
-      const url = await uploadProductImage(file);
-      set("imagen", url);
-    } catch (err) {
-      console.error(err);
-      setError("No se pudo procesar la imagen seleccionada.");
-    } finally {
-      setIsUploadingImage(false);
-    }
-  }
-
-  function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    void procesarImagen(e.target.files?.[0]);
-  }
-
-  function handleImageDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
-    if (isUploadingImage) return;
-    void procesarImagen(e.dataTransfer.files?.[0]);
-  }
-
-  // Saca un archivo de imagen del portapapeles (captura de pantalla o
-  // "Copiar imagen"). Devuelve true si había una imagen y la procesó.
-  function imagenDelPortapapeles(cd: DataTransfer | null | undefined): boolean {
-    if (!cd || isUploadingImage) return false;
-    if (cd.files && cd.files.length > 0 && cd.files[0].type.startsWith("image/")) {
-      void procesarImagen(cd.files[0]);
-      return true;
-    }
-    for (const item of Array.from(cd.items ?? [])) {
-      if (item.kind === "file" && item.type.startsWith("image/")) {
-        void procesarImagen(item.getAsFile() ?? undefined);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Pegar (Ctrl+V) en cualquier parte del formulario, salvo mientras se
-  // escribe en un campo de texto.
-  useEffect(() => {
-    function onPaste(e: ClipboardEvent) {
-      const el = document.activeElement;
-      const escribiendo =
-        el instanceof HTMLElement &&
-        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-      if (escribiendo) return;
-      if (imagenDelPortapapeles(e.clipboardData)) e.preventDefault();
-    }
-    document.addEventListener("paste", onPaste);
-    return () => document.removeEventListener("paste", onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isUploadingImage]);
-
   function resetForm() {
     setForm(emptyForm(categories[0] || DEFAULT_CATEGORIES[0]));
     setAutoCodigo(true);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setImageFieldKey((k) => k + 1); // remonta el campo de imagen, limpio
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -287,88 +223,13 @@ export default function NewProductEntryForm() {
         </div>
       </div>
 
-      {/* Imagen */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-            Imagen del producto <span className="text-stone-400 font-normal lowercase">(opcional)</span>
-          </label>
-          {form.imagen && (
-            <button
-              type="button"
-              onClick={() => {
-                set("imagen", "");
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-              className="text-[11px] text-brand-500 hover:text-brand-700 font-medium cursor-pointer"
-            >
-              Quitar foto
-            </button>
-          )}
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageFileChange}
-          className="hidden"
-        />
-        {form.imagen ? (
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleImageDrop}
-            className={`flex items-center gap-3 p-2 border rounded-lg transition-colors ${
-              dragOver ? "border-brand-500 bg-brand-50/60" : "bg-stone-50 border-stone-200"
-            }`}
-          >
-            <img
-              src={form.imagen}
-              alt="Vista previa del producto"
-              className="w-12 h-12 rounded-md object-cover border border-stone-200 shadow-xs flex-shrink-0"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-[11px] text-brand-600 hover:text-brand-800 font-medium cursor-pointer"
-            >
-              Cambiar imagen
-            </button>
-            <span className="text-[11px] text-stone-400 ml-auto hidden sm:block">o arrastra / pega (Ctrl+V) otra</span>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleImageDrop}
-            disabled={isUploadingImage}
-            className={`w-full py-3 px-3 border border-dashed rounded-lg text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              dragOver
-                ? "border-brand-500 bg-brand-50 text-brand-700"
-                : "border-stone-300 hover:border-brand-500 hover:bg-brand-50/50 text-stone-600 bg-stone-50/50"
-            }`}
-          >
-            <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span>
-              {isUploadingImage
-                ? "Subiendo imagen..."
-                : dragOver
-                ? "Suelta la imagen para subirla"
-                : "Elegir archivo, arrastrar o pegar (Ctrl+V)"}
-            </span>
-          </button>
-        )}
-      </div>
+      <ImageUploadField
+        key={imageFieldKey}
+        value={form.imagen}
+        onChange={(url) => set("imagen", url)}
+        onError={setError}
+        hint="(opcional)"
+      />
 
       {error && (
         <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
