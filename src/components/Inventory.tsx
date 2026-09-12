@@ -5,7 +5,7 @@ import EditProductModal from "./EditProductModal";
 import Pager from "./Pager";
 import { filtrarBusqueda, normalizar } from "../utils/search";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE_DEFAULT = 25;
 
 // Orden del inventario: por código, del más alto al más bajo (el último
 // producto registrado queda en la primera fila). Los códigos numéricos van
@@ -28,6 +28,7 @@ export default function Inventory() {
   const [editingProduct, setEditingProduct] = useState<InventoryItem | null>(null);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   useEffect(() => {
     setPage(1);
@@ -47,7 +48,7 @@ export default function Inventory() {
     .slice()
     .sort((a, b) => compararCodigoDesc(a.codigo, b.codigo));
 
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   function handleDeleteProduct(codigo: string) {
     deleteProduct(codigo);
@@ -198,7 +199,16 @@ export default function Inventory() {
             </tbody>
           </table>
         </div>
-        <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />
+        <Pager
+          page={page}
+          pageSize={pageSize}
+          total={filtered.length}
+          onPage={setPage}
+          onPageSize={(n) => {
+            setPageSize(n);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Edit Product Modal */}

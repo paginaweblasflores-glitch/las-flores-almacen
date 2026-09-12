@@ -5,7 +5,7 @@ import { normalizar } from "../utils/search";
 import ComprobanteSalida, { usarImpresionComprobante } from "./ComprobanteSalida";
 import Pager from "./Pager";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_DEFAULT = 20;
 
 export default function Comprobantes() {
   const { comprobantes } = useStore();
@@ -20,6 +20,7 @@ export default function Comprobantes() {
 
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
   const [detalle, setDetalle] = useState<Comprobante | null>(null);
   const [ticket, imprimir] = usarImpresionComprobante();
 
@@ -36,7 +37,7 @@ export default function Comprobantes() {
     });
   }, [todos, q]);
 
-  const pageItems = filtrados.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = filtrados.slice((page - 1) * pageSize, page * pageSize);
 
   function reimprimir(c: Comprobante) {
     setDetalle(null);
@@ -114,7 +115,16 @@ export default function Comprobantes() {
             </tbody>
           </table>
         </div>
-        <Pager page={page} pageSize={PAGE_SIZE} total={filtrados.length} onPage={setPage} />
+        <Pager
+          page={page}
+          pageSize={pageSize}
+          total={filtrados.length}
+          onPage={setPage}
+          onPageSize={(n) => {
+            setPageSize(n);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Detalle de un comprobante */}

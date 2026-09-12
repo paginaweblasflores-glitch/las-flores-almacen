@@ -4,7 +4,7 @@ import type { Movement, MovementType } from "../types";
 import EditMovementModal from "./EditMovementModal";
 import Pager from "./Pager";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE_DEFAULT = 25;
 
 interface Props {
   movements: Movement[];
@@ -20,12 +20,13 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
   const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   useEffect(() => {
     setPage(1);
   }, [movements.length]);
 
-  const pageItems = movements.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageItems = movements.slice((page - 1) * pageSize, page * pageSize);
 
   function handleDelete(id: string) {
     deleteMovement(id);
@@ -150,7 +151,16 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
             </tbody>
           </table>
         </div>
-        <Pager page={page} pageSize={PAGE_SIZE} total={movements.length} onPage={setPage} />
+        <Pager
+          page={page}
+          pageSize={pageSize}
+          total={movements.length}
+          onPage={setPage}
+          onPageSize={(n) => {
+            setPageSize(n);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Edit Movement Modal */}
