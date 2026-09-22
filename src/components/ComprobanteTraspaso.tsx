@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { TicketData } from "../types";
+import type { TraspasoTicketData } from "../types";
 
-// Hook: muestra un comprobante y lo manda a imprimir. Espera a que el logo
-// termine de cargar (si no, sale roto en la tiquetera) y limpia al terminar.
-// Lo usan tanto el carrito de salida como el módulo de Comprobantes (reimpresión).
-export function usarImpresionComprobante(): [TicketData | null, (t: TicketData) => void] {
-  const [ticket, setTicket] = useState<TicketData | null>(null);
+// Hook gemelo de usarImpresionComprobante (ComprobanteSalida.tsx), clonado
+// en vez de generalizado: son ~35 líneas sin nada específico de Salida, y
+// así queda un archivo chico por documento en vez de una abstracción
+// compartida prematura.
+export function usarImpresionTraspaso(): [TraspasoTicketData | null, (t: TraspasoTicketData) => void] {
+  const [ticket, setTicket] = useState<TraspasoTicketData | null>(null);
 
-  // Precarga el logo para que ya esté en caché cuando toque imprimir.
   useEffect(() => {
     const img = new Image();
     img.src = "/logo.png";
@@ -42,9 +42,10 @@ export function usarImpresionComprobante(): [TicketData | null, (t: TicketData) 
   return [ticket, setTicket];
 }
 
-// El comprobante en sí: portal directo en <body> para que el @media print lo
-// aísle. Layout térmico de 64 mm, todo negro y en negrita.
-export default function ComprobanteSalida({ ticket }: { ticket: TicketData }) {
+// El comprobante de traspaso: mismo portal/CSS térmico que ComprobanteSalida
+// (clase .ticket-portal, cero CSS nuevo), pero con almacén origen → destino
+// en vez de "Área destino".
+export default function ComprobanteTraspaso({ ticket }: { ticket: TraspasoTicketData }) {
   return createPortal(
     <div className="ticket-portal">
       <div style={{ textAlign: "center", borderBottom: "2px solid #000", paddingBottom: "6px", marginBottom: "6px" }}>
@@ -54,22 +55,21 @@ export default function ComprobanteSalida({ ticket }: { ticket: TicketData }) {
           style={{ width: "40px", height: "40px", objectFit: "contain", display: "block", margin: "0 auto 4px" }}
         />
         <div style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.02em", color: "#000" }}>
-          {ticket.almacenNombre}
+          Sistema Almacén
         </div>
         <div style={{ fontWeight: 700, fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.08em", color: "#000", marginTop: "2px" }}>
-          Comprobante de Salida de Almacén
+          Comprobante de Traspaso entre Almacenes
         </div>
-        {ticket.numero && (
-          <div style={{ fontWeight: 700, fontSize: "11px", color: "#000", marginTop: "3px" }}>
-            Número de Salida: {ticket.numero}
-          </div>
-        )}
+        <div style={{ fontWeight: 700, fontSize: "11px", color: "#000", marginTop: "3px" }}>
+          Número de Traspaso: {ticket.numero}
+        </div>
       </div>
 
       <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
         {[
           ["Fecha", ticket.fecha.split("-").reverse().join("/")],
-          ["Área destino", ticket.area],
+          ["Origen", ticket.almacenOrigenNombre],
+          ["Destino", ticket.almacenDestinoNombre],
         ].map(([label, value]) => (
           <div
             key={label}
@@ -103,25 +103,25 @@ export default function ComprobanteSalida({ ticket }: { ticket: TicketData }) {
         ))}
       </div>
 
-      {ticket.observaciones && (
+      {ticket.motivo && (
         <div style={{ borderBottom: "1px dashed #000", paddingBottom: "6px", marginBottom: "6px" }}>
           <div style={{ fontSize: "9px", fontWeight: 700, color: "#000", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>
-            Observaciones
+            Motivo
           </div>
           <div style={{ fontSize: "11px", lineHeight: "1.5", fontWeight: 700, color: "#000", wordBreak: "break-word", overflowWrap: "break-word" }}>
-            {ticket.observaciones}
+            {ticket.motivo}
           </div>
         </div>
       )}
 
-      <div style={{ textAlign: "center", paddingTop: ticket.observaciones ? "55px" : "75px" }}>
+      <div style={{ textAlign: "center", paddingTop: ticket.motivo ? "55px" : "75px" }}>
         <div style={{ borderTop: "1px solid #000", width: "60%", margin: "0 auto 4px" }} />
         <div style={{ fontSize: "11px", fontWeight: 700, color: "#000" }}>{ticket.responsable}</div>
-        <div style={{ fontSize: "9px", fontWeight: 700, color: "#000" }}>Recibí conforme</div>
+        <div style={{ fontSize: "9px", fontWeight: 700, color: "#000" }}>Despachado por</div>
       </div>
 
       <div style={{ textAlign: "center", borderTop: "1px dashed #000", marginTop: "10px", paddingTop: "5px", fontSize: "9px", fontWeight: 700, color: "#000" }}>
-        Sistema Almacén · {ticket.almacenNombre}
+        Sistema Almacén · {ticket.almacenOrigenNombre} → {ticket.almacenDestinoNombre}
       </div>
 
       <br />

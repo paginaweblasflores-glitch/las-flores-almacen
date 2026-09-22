@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useStore, etiquetaComprobante } from "../store";
 import type { Comprobante } from "../types";
+import type { CuentaAlmacen } from "../supabaseClient";
 import { normalizar } from "../utils/search";
 import ComprobanteSalida, { usarImpresionComprobante } from "./ComprobanteSalida";
 import Pager from "./Pager";
 
 const PAGE_SIZE_DEFAULT = 20;
 
-export default function Comprobantes() {
+export default function Comprobantes({ cuenta }: { cuenta: CuentaAlmacen }) {
   const { comprobantes } = useStore();
   const todos = useMemo(
     () =>
@@ -43,6 +44,7 @@ export default function Comprobantes() {
     setDetalle(null);
     imprimir({
       numero: etiquetaComprobante(c),
+      almacenNombre: cuenta.nombre,
       fecha: c.fecha,
       area: c.area,
       responsable: c.responsable,

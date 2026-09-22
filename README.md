@@ -1,6 +1,6 @@
 # Sistema Almacén — Las Flores
 
-Aplicación web de control de inventario para el almacén de **Corporación Las Flores**.
+Aplicación web de control de inventario para el almacén de **Restaurante Las Flores**.
 
 - **Entradas** y **Salidas** con carrito multi-ítem: se busca cada producto, se agrega con su
   cantidad y se registran todos juntos; la Salida imprime un comprobante para firmar
@@ -43,14 +43,40 @@ VITE_SUPABASE_ANON_KEY=tu-clave-anon-publica
 ## Configuración de Supabase
 
 1. **SQL Editor → ejecutar `supabase/schema.sql`** (una vez, en una base nueva).
-   Crea las tablas, índices, políticas RLS, el bucket de Storage `productos` y las categorías iniciales.
-   - Si la base viene de una versión anterior, ejecuta en su lugar las migraciones pendientes **en orden**:
-     `supabase/migration-fase2.sql` → `supabase/migration-fase3.sql`.
-2. **Authentication → Users → Add user:**
-   - Email: `almacen2026@almacen.local`
-   - Contraseña: una segura, con *Auto Confirm User* activado
-   - En la app se selecciona el usuario **Almacen Las Flores** (mapea a ese email).
-3. Verifica que **RLS** esté habilitado en `movements`, `categories` y `storage.objects`.
+   Crea las tablas, índices, políticas RLS (una por almacén), el bucket de Storage `productos` y las
+   categorías iniciales de cada almacén.
+   - Si la base viene de una versión anterior, ejecuta en su lugar las migraciones pendientes **en
+     orden**: `supabase/migration-fase2.sql` → `migration-fase3.sql` → `migration-fase4.sql` →
+     `migration-fase5.sql` → `migration-fase6.sql` → `migration-fase7.sql` (traspasos entre almacenes) →
+     `migration-fase8.sql` (corrige la numeración de comprobantes por almacén) → `migration-fase9.sql`
+     (cuenta Administrador con control total) → `migration-fase10.sql` (el Administrador cambia la
+     contraseña de cualquier cuenta desde su panel).
+2. **Authentication → Users → Add user**, una vez por cada cuenta de `CUENTAS` en `src/supabaseClient.ts`
+   (email + contraseña, con *Auto Confirm User* activado). Hoy son tres:
+   - `almacen2026@almacen.local` → usuario **Almacen Las Flores**, almacén `las-flores`.
+   - `almacenumaru2026@almacen.local` → usuario **Almacen Hotel Umaru**, almacén `hotel-umaru`.
+   - `corporacion2026@almacen.local` → usuario **Corporación Las Flores** (cuenta de administrador).
+     Créalo **antes** de correr `migration-fase9.sql` (su último paso le asigna el rol con un
+     `UPDATE`; si el usuario no existe todavía, ese `UPDATE` no hace nada y hay que volver a
+     correrlo después).
+
+   Cada cuenta de almacén tiene su **propio inventario, movimientos y comprobantes** — separados de
+   verdad por Row Level Security según el `almacen` que trae el token de sesión (`app_metadata` del
+   usuario en Supabase Auth), no solo por un filtro de la app. Para agregar una cuenta nueva hay que
+   tocar **tres lugares**: su entrada en `CUENTAS`, el usuario en el Dashboard, y el
+   `UPDATE auth.users … raw_app_meta_data` del paso 4 de `supabase/migration-fase6.sql` (las políticas
+   de RLS no se tocan). Después de correr esa migración —o de agregar una cuenta nueva— hay que
+   **cerrar sesión y volver a entrar** con esa cuenta para que el token traiga el `almacen` actualizado.
+
+   La cuenta **Corporación Las Flores** (login del administrador) es distinta: no tiene su propio
+   almacén, ve y escribe los datos de **cualquier** almacén (`app_metadata.role = "admin"`, no
+   `almacen` — ver `migration-fase9.sql`).
+   Al entrar aterriza en su propio panel con estadísticas de los dos almacenes, y desde ahí entra al
+   panel completo de cualquiera de los dos sin volver a loguearse (`src/components/AdminDashboard.tsx`).
+   Desde el botón de engranaje de ese panel (`src/components/AdminConfiguracion.tsx`) puede además
+   cambiarle la contraseña a cualquier cuenta (la suya incluida) — los almaceneros ya no tienen esa
+   opción en su propio Configuración, la centraliza el administrador (`migration-fase10.sql`).
+3. Verifica que **RLS** esté habilitado en `movements`, `categories`, `comprobantes` y `storage.objects`.
 
 > Los archivos de `supabase/` son el **esquema y las migraciones** (código de configuración, no datos).
 > El volcado de datos que genera el importador (`supabase/import-inventario.sql`) sí está ignorado.

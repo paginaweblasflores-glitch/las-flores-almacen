@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import type { Movement, InventoryItem, MovementType, Comprobante } from "./types";
+import type { Movement, InventoryItem, MovementType, Comprobante, Traspaso, TraspasoEstado, TraspasoItem, TraspasoItemRecibido } from "./types";
 import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "./types";
-import { supabase } from "./supabaseClient";
+import { supabase, cuentaPorAlmacen } from "./supabaseClient";
 import { useToast } from "./toast";
 
 const STORAGE_KEY = "SISTEMA_ALMACEN_MOVEMENTS_V1";
@@ -12,7 +12,7 @@ function unitCost(m: Movement): number {
   return m.cantidad > 0 ? m.valor / m.cantidad : m.valor;
 }
 
-function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
+export function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
   const map = new Map<string, InventoryItem>();
   for (const m of movements) {
     const key = m.codigo.toUpperCase().trim();
@@ -111,7 +111,7 @@ export function construirCierre(movements: Movement[], anio: number): CierrePrev
   return { corte, inicioNuevo, marca, archivados, saldos, negativos };
 }
 
-function movementFromRow(row: Record<string, unknown>): Movement {
+export function movementFromRow(row: Record<string, unknown>): Movement {
   const cantidad = Number(row.cantidad);
   const valor = Number(row.valor);
   const costo = row.costo != null ? Number(row.costo) : cantidad > 0 ? valor / cantidad : 0;
@@ -173,7 +173,7 @@ function comprobanteFromRow(row: Record<string, unknown>): Comprobante {
   };
 }
 
-function comprobanteToRow(c: Comprobante) {
+function comprobanteToRow(c: Comprobante, almacen: string) {
   return {
     id: c.id,
     tipo: c.tipo,
@@ -190,10 +190,81 @@ function comprobanteToRow(c: Comprobante) {
       unidad_medida: it.unidadMedida,
     })),
     movement_ids: c.movementIds,
+    almacen,
   };
 }
 
-function movementToRow(movement: Movement) {
+function traspasoFromRow(row: Record<string, unknown>): Traspaso {
+  const rawItems = Array.isArray(row.items) ? (row.items as Record<string, unknown>[]) : [];
+  const rawItemsRecibidos = Array.isArray(row.items_recibidos)
+    ? (row.items_recibidos as Record<string, unknown>[])
+    : null;
+  return {
+    id: String(row.id),
+    numero: Number(row.numero),
+    periodo: String(row.periodo),
+    almacenOrigen: String(row.almacen_origen),
+    almacenDestino: String(row.almacen_destino),
+    estado: row.estado as TraspasoEstado,
+    fechaEnvio: String(row.fecha_envio),
+    responsableEnvio: String(row.responsable_envio),
+    motivo: row.motivo ? String(row.motivo) : undefined,
+    items: rawItems.map((it) => ({
+      codigo: String(it.codigo ?? ""),
+      descripcion: String(it.descripcion ?? ""),
+      cantidad: Number(it.cantidad ?? 0),
+      unidadMedida: it.unidadMedida ? String(it.unidadMedida) : undefined,
+      costo: Number(it.costo ?? 0),
+      categoria: it.categoria ? String(it.categoria) : undefined,
+    })),
+    movementIdsSalida: Array.isArray(row.movement_ids_salida) ? (row.movement_ids_salida as unknown[]).map(String) : [],
+    fechaRecepcion: row.fecha_recepcion ? String(row.fecha_recepcion) : undefined,
+    responsableRecepcion: row.responsable_recepcion ? String(row.responsable_recepcion) : undefined,
+    itemsRecibidos: rawItemsRecibidos
+      ? rawItemsRecibidos.map((it) => ({
+          codigoOrigen: String(it.codigoOrigen ?? ""),
+          codigo: String(it.codigo ?? ""),
+          descripcion: String(it.descripcion ?? ""),
+          cantidad: Number(it.cantidad ?? 0),
+          unidadMedida: it.unidadMedida ? String(it.unidadMedida) : undefined,
+          costo: Number(it.costo ?? 0),
+          categoria: it.categoria ? String(it.categoria) : undefined,
+          area: String(it.area ?? ""),
+          esNuevo: Boolean(it.esNuevo),
+        }))
+      : undefined,
+    movementIdsEntrada: Array.isArray(row.movement_ids_entrada) ? (row.movement_ids_entrada as unknown[]).map(String) : [],
+    motivoCancelacion: row.motivo_cancelacion ? String(row.motivo_cancelacion) : undefined,
+    createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
+  };
+}
+
+function traspasoToRow(t: Traspaso) {
+  return {
+    id: t.id,
+    numero: t.numero,
+    periodo: t.periodo,
+    almacen_origen: t.almacenOrigen,
+    almacen_destino: t.almacenDestino,
+    estado: t.estado,
+    fecha_envio: t.fechaEnvio,
+    responsable_envio: t.responsableEnvio,
+    motivo: t.motivo ?? null,
+    items: t.items,
+    movement_ids_salida: t.movementIdsSalida,
+    fecha_recepcion: t.fechaRecepcion ?? null,
+    responsable_recepcion: t.responsableRecepcion ?? null,
+    items_recibidos: t.itemsRecibidos ?? null,
+    movement_ids_entrada: t.movementIdsEntrada,
+    motivo_cancelacion: t.motivoCancelacion ?? null,
+  };
+}
+
+export function etiquetaTraspaso(t: Traspaso): string {
+  return `T-${t.numero}`;
+}
+
+function movementToRow(movement: Movement, almacen: string) {
   return {
     id: movement.id,
     codigo: movement.codigo,
@@ -210,6 +281,7 @@ function movementToRow(movement: Movement) {
     tipo: movement.tipo,
     imagen: movement.imagen ?? null,
     motivo: movement.motivo ?? null,
+    almacen,
   };
 }
 
@@ -232,7 +304,31 @@ export type MovementInput = Omit<Movement, "id" | "costo" | "stockMinimo" | "val
   valor?: number;
 };
 
+// Lo que arma el carrito de traspaso: destino + productos de MI inventario.
+export interface EnviarTraspasoInput {
+  almacenDestino: string;
+  items: TraspasoItem[];
+  fecha: string;
+  responsable: string;
+  motivo?: string;
+}
+
+// Cómo resolvió el destino cada línea del traspaso: a qué producto de SU
+// propio inventario queda (existente, con su área ya asignada, o nuevo).
+export interface ResueltoTraspasoItem {
+  codigoOrigen: string;
+  codigo: string;
+  descripcion: string;
+  cantidad: number;
+  unidadMedida?: string;
+  costo: number;
+  categoria?: string;
+  area: string;
+  esNuevo: boolean;
+}
+
 interface StoreCtx {
+  almacen: string;
   movements: Movement[];
   inventory: InventoryItem[];
   comprobantes: Comprobante[];
@@ -250,17 +346,35 @@ interface StoreCtx {
   deleteProduct: (codigo: string) => void;
   clearAll: () => void;
   cerrarAnio: (anio: number) => Promise<CierreResult>;
+  traspasos: Traspaso[];
+  proximoNumeroTraspaso: () => string;
+  enviarTraspaso: (input: EnviarTraspasoInput) => Promise<string | null>;
+  recibirTraspaso: (
+    traspasoId: string,
+    resueltos: ResueltoTraspasoItem[],
+    responsable: string,
+    fecha: string,
+  ) => Promise<string | null>;
+  cancelarTraspaso: (traspasoId: string, motivo?: string) => Promise<string | null>;
 }
 
 const Ctx = createContext<StoreCtx | null>(null);
 
-export function StoreProvider({ children }: { children: ReactNode }) {
+// Cada almacén (cuenta de acceso) tiene su propio respaldo local, así el
+// caché offline de uno no se mezcla con el de otro en el mismo navegador.
+function claveAlmacen(base: string, almacen: string): string {
+  return `${base}::${almacen}`;
+}
+
+export function StoreProvider({ children, almacen }: { children: ReactNode; almacen: string }) {
   const toast = useToast();
+  const storageKey = claveAlmacen(STORAGE_KEY, almacen);
+  const categoriesStorageKey = claveAlmacen(CATEGORIES_STORAGE_KEY, almacen);
 
   // Categorías guardadas (semilla + las que se crearon en versiones previas).
   const [dbCategories, setDbCategories] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+      const saved = localStorage.getItem(categoriesStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -279,7 +393,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // sirve de respaldo offline cuando no hay Supabase.
     if (supabase) return [];
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         return (JSON.parse(saved) as Movement[]).map((m) => ({
           ...m,
@@ -294,21 +408,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(dbCategories));
+      localStorage.setItem(categoriesStorageKey, JSON.stringify(dbCategories));
     } catch (e) {
       console.error("Error saving categories to localStorage:", e);
     }
-  }, [dbCategories]);
+  }, [categoriesStorageKey, dbCategories]);
 
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
+  const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(movements));
+      localStorage.setItem(storageKey, JSON.stringify(movements));
     } catch (e) {
       console.error("Error saving movements to localStorage:", e);
     }
-  }, [movements]);
+  }, [storageKey, movements]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -323,6 +438,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const { data, error } = await client!
           .from("movements")
           .select("*")
+          .eq("almacen", almacen)
           .order("fecha", { ascending: true })
           .order("id", { ascending: true })
           .range(from, from + PAGE - 1);
@@ -340,6 +456,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const { data, error } = await client!
           .from("comprobantes")
           .select("*")
+          .eq("almacen", almacen)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+      }
+      return { data: rows, error: null as null };
+    }
+
+    // La única consulta de todo el store que no es de un solo almacén: un
+    // traspaso lo puede ver tanto quien lo envió como quien lo recibe.
+    async function fetchAllTraspasos() {
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client!
+          .from("traspasos")
+          .select("*")
+          .or(`almacen_origen.eq.${almacen},almacen_destino.eq.${almacen}`)
           .order("created_at", { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) return { data: null, error };
@@ -350,10 +486,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     async function loadFromSupabase() {
-      const [movementResult, categoryResult, comprobanteResult] = await Promise.all([
+      const [movementResult, categoryResult, comprobanteResult, traspasoResult] = await Promise.all([
         fetchAllMovements(),
-        client!.from("categories").select("name").order("name"),
+        client!.from("categories").select("name").eq("almacen", almacen).order("name"),
         fetchAllComprobantes(),
+        fetchAllTraspasos(),
       ]);
 
       if (movementResult.error) {
@@ -375,10 +512,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else if (categoryResult.data?.length) {
         setDbCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...categoryResult.data.map((row) => row.name)])));
       }
+
+      if (traspasoResult.error) {
+        console.error("Error cargando traspasos desde Supabase:", traspasoResult.error);
+      } else {
+        setTraspasos((traspasoResult.data ?? []).map(traspasoFromRow));
+      }
     }
 
     void loadFromSupabase();
-  }, [toast]);
+  }, [toast, almacen]);
 
   const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
   const numeros = calcularNumeros(comprobantes);
@@ -426,7 +569,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     void supabase
       .from("comprobantes")
-      .insert(comprobanteToRow(comp))
+      .insert(comprobanteToRow(comp, almacen))
       .then(({ error }) => {
         if (error) {
           console.error("Error guardando comprobante en Supabase:", error);
@@ -491,7 +634,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMovements((prev) => [...prev, newM]);
     setComprobantes((prev) => [...prev, comp]);
     if (supabase) {
-      void supabase.from("movements").insert(movementToRow(newM)).then(({ error }) => {
+      void supabase.from("movements").insert(movementToRow(newM, almacen)).then(({ error }) => {
         if (error) {
           console.error("Error guardando movimiento en Supabase:", error);
           setMovements((prev) => prev.filter((x) => x.id !== newM.id));
@@ -553,7 +696,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const tipo = list[0].tipo;
       void supabase
         .from("movements")
-        .insert(newMs.map(movementToRow))
+        .insert(newMs.map((m) => movementToRow(m, almacen)))
         .then(({ error }) => {
           if (error) {
             console.error("Error guardando movimientos en Supabase:", error);
@@ -598,7 +741,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     setMovements((prev) => prev.map((m) => (m.id === id ? merged : m)));
     if (supabase) {
-      void supabase.from("movements").upsert(movementToRow(merged)).then(({ error }) => {
+      void supabase.from("movements").upsert(movementToRow(merged, almacen)).then(({ error }) => {
         if (error) {
           console.error("Error actualizando movimiento en Supabase:", error);
           toast.error("El cambio no se guardó en el servidor. Vuelve a intentarlo.");
@@ -638,7 +781,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
       if (updated.costo !== undefined) patch.costo = updated.costo;
       if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
-      void supabase.from("movements").update(patch).ilike("codigo", oldCodigo.trim()).then(({ error }) => {
+      void supabase.from("movements").update(patch).ilike("codigo", oldCodigo.trim()).eq("almacen", almacen).then(({ error }) => {
         if (error) {
           console.error("Error actualizando producto en Supabase:", error);
           toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
@@ -650,7 +793,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   function deleteMovement(id: string) {
     setMovements((prev) => prev.filter((m) => m.id !== id));
     if (supabase) {
-      void supabase.from("movements").delete().eq("id", id).then(({ error }) => {
+      void supabase.from("movements").delete().eq("id", id).eq("almacen", almacen).then(({ error }) => {
         if (error) {
           console.error("Error eliminando movimiento en Supabase:", error);
           toast.error("El movimiento no se eliminó en el servidor.");
@@ -663,7 +806,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const upper = codigo.toUpperCase().trim();
     setMovements((prev) => prev.filter((m) => m.codigo.toUpperCase().trim() !== upper));
     if (supabase) {
-      void supabase.from("movements").delete().ilike("codigo", upper).then(({ error }) => {
+      void supabase.from("movements").delete().ilike("codigo", upper).eq("almacen", almacen).then(({ error }) => {
         if (error) {
           console.error("Error eliminando producto en Supabase:", error);
           toast.error("El producto no se eliminó en el servidor.");
@@ -696,12 +839,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (supabase) {
         const { data, error } = await supabase
           .from("movements")
-          .insert(saldos.map(movementToRow))
+          .insert(saldos.map((m) => movementToRow(m, almacen)))
           .select("id");
         if (error || !data || data.length !== saldos.length) {
           console.error("Cierre anual: error creando saldos iniciales", error);
           if (data && data.length) {
-            await supabase.from("movements").delete().in("id", data.map((r) => String(r.id)));
+            await supabase.from("movements").delete().in("id", data.map((r) => String(r.id))).eq("almacen", almacen);
           }
           return {
             error:
@@ -721,7 +864,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (supabase) {
       for (let i = 0; i < ids.length; i += 150) {
         const chunk = ids.slice(i, i + 150);
-        const { error } = await supabase.from("movements").delete().in("id", chunk);
+        const { error } = await supabase.from("movements").delete().in("id", chunk).eq("almacen", almacen);
         if (error) {
           console.error("Cierre anual: error borrando lote de archivados", error);
           if (borrados > 0) {
@@ -755,7 +898,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const { error } = await supabase
             .from("comprobantes")
             .delete()
-            .in("id", compIds.slice(i, i + 150));
+            .in("id", compIds.slice(i, i + 150))
+            .eq("almacen", almacen);
           if (error) {
             console.error("Cierre anual: error borrando comprobantes del periodo", error);
             break;
@@ -776,10 +920,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMovements([]);
     setComprobantes([]);
     if (supabase) {
-      void supabase.from("comprobantes").delete().neq("id", "").then(({ error }) => {
+      void supabase.from("comprobantes").delete().eq("almacen", almacen).then(({ error }) => {
         if (error) console.error("Error limpiando comprobantes en Supabase:", error);
       });
-      void supabase.from("movements").delete().neq("id", "").then(({ error }) => {
+      void supabase.from("movements").delete().eq("almacen", almacen).then(({ error }) => {
         if (error) {
           console.error("Error limpiando movimientos en Supabase:", error);
           toast.error("No se pudo vaciar el almacén en el servidor.");
@@ -789,15 +933,289 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
     }
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey);
     } catch (e) {
       console.error("Error clearing localStorage:", e);
     }
   }
 
+  // Entero que le tocará al próximo traspaso que YO envíe, dentro del año en
+  // curso. A diferencia de `comprobantes` (100% propio), `traspasos` trae
+  // filas de ambas direcciones, así que acá sí hace falta filtrar por
+  // almacenOrigen === almacen explícitamente.
+  function siguienteNumeroTraspaso(): number {
+    const periodo = String(new Date().getFullYear());
+    return (
+      traspasos
+        .filter((t) => t.almacenOrigen === almacen && t.periodo === periodo)
+        .reduce((mx, t) => Math.max(mx, t.numero), 0) + 1
+    );
+  }
+
+  function proximoNumeroTraspaso(): string {
+    return `T-${siguienteNumeroTraspaso()}`;
+  }
+
+  // Envía un traspaso: descuenta MI stock al toque (Salida "suelta", sin
+  // comprobante E-/S- — el documento de traspaso ya es su propio papel, como
+  // los saldos de cierrarAnio) y crea el registro "pendiente" que el destino
+  // va a poder ver y recibir. Verificación fuerte (con `.select("id")`) en
+  // vez del simple "sin error" de addMovements: acá perder el insert en
+  // silencio significaría mercadería que salió de mi almacén pero nunca
+  // aparece pendiente en el otro — se pierde, no es solo un comprobante sin número.
+  async function enviarTraspaso(input: EnviarTraspasoInput): Promise<string | null> {
+    if (input.items.length === 0) return "El carrito está vacío.";
+    if (!supabase) return "No hay conexión con el servidor.";
+
+    const itemsNorm: TraspasoItem[] = input.items.map((it) => ({
+      ...it,
+      codigo: it.codigo.toUpperCase().trim(),
+      descripcion: it.descripcion.trim(),
+    }));
+
+    // Chequeo de stock acumulado (dos líneas del mismo código se descuentan juntas).
+    const inv = buildInventory(movements);
+    const running = new Map<string, number>();
+    for (const it of itemsNorm) {
+      const disponible = running.has(it.codigo) ? (running.get(it.codigo) as number) : inv.get(it.codigo)?.cantidadDisponible ?? 0;
+      const restante = disponible - it.cantidad;
+      if (restante < 0) {
+        return `Stock insuficiente para "${it.descripcion}". Disponible: ${Math.max(0, disponible)}.`;
+      }
+      running.set(it.codigo, restante);
+    }
+
+    const destinoNombre = cuentaPorAlmacen(input.almacenDestino)?.nombre ?? input.almacenDestino;
+    const responsable = input.responsable.toUpperCase().trim();
+    const motivo = input.motivo?.trim() || undefined;
+    const loteCreatedAt = new Date().toISOString();
+    const salidaMs: Movement[] = itemsNorm.map((it) => ({
+      id: crypto.randomUUID(),
+      codigo: it.codigo,
+      descripcion: it.descripcion,
+      cantidad: it.cantidad,
+      unidadMedida: it.unidadMedida,
+      costo: it.costo,
+      stockMinimo: 0,
+      valor: Math.round(it.costo * it.cantidad * 100) / 100,
+      fecha: input.fecha,
+      responsable,
+      area: `Traspaso a ${destinoNombre}`,
+      categoria: it.categoria,
+      tipo: "Salida",
+      motivo,
+      createdAt: loteCreatedAt,
+    }));
+
+    const { data, error } = await supabase
+      .from("movements")
+      .insert(salidaMs.map((m) => movementToRow(m, almacen)))
+      .select("id");
+    if (error || !data || data.length !== salidaMs.length) {
+      console.error("Traspaso: error creando movimientos de salida", error);
+      if (data && data.length) {
+        await supabase.from("movements").delete().in("id", data.map((r) => String(r.id))).eq("almacen", almacen);
+      }
+      return "No se pudo registrar la salida del traspaso. Vuelve a intentarlo.";
+    }
+    setMovements((prev) => [...prev, ...salidaMs]);
+
+    const traspaso: Traspaso = {
+      id: crypto.randomUUID(),
+      numero: siguienteNumeroTraspaso(),
+      periodo: String(new Date().getFullYear()),
+      almacenOrigen: almacen,
+      almacenDestino: input.almacenDestino,
+      estado: "pendiente",
+      fechaEnvio: input.fecha,
+      responsableEnvio: responsable,
+      motivo,
+      items: itemsNorm,
+      movementIdsSalida: salidaMs.map((m) => m.id),
+      movementIdsEntrada: [],
+      createdAt: loteCreatedAt,
+    };
+
+    const { error: tError } = await supabase.from("traspasos").insert(traspasoToRow(traspaso));
+    if (tError) {
+      console.error("Traspaso: error guardando el documento", tError);
+      const ids = salidaMs.map((m) => m.id);
+      await supabase.from("movements").delete().in("id", ids).eq("almacen", almacen);
+      setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
+      return "Los productos no salieron del almacén: no se pudo guardar el traspaso. Vuelve a intentarlo.";
+    }
+
+    setTraspasos((prev) => [traspaso, ...prev]);
+    toast.success(`Traspaso ${etiquetaTraspaso(traspaso)} enviado a ${destinoNombre}.`);
+    return null;
+  }
+
+  // Recibe un traspaso pendiente: crea MIS movimientos de Entrada primero y
+  // recién si eso funciona marca el traspaso como "recibido" (con guardia
+  // `.eq("estado","pendiente")`, verificada). En ese orden a propósito: si
+  // fuera al revés y el insert de movimientos fallara después de marcar
+  // "recibido", quedaría mostrando recibido sin haber sumado stock — peor
+  // que dejarlo en "pendiente" (claramente retomable).
+  async function recibirTraspaso(
+    traspasoId: string,
+    resueltos: ResueltoTraspasoItem[],
+    responsable: string,
+    fecha: string,
+  ): Promise<string | null> {
+    const t = traspasos.find((x) => x.id === traspasoId);
+    if (!t) return "No se encontró el traspaso.";
+    if (t.estado !== "pendiente") return "Este traspaso ya no está pendiente.";
+    if (t.almacenDestino !== almacen) return "Este traspaso no es para tu almacén.";
+    if (resueltos.length === 0) return "No hay productos para recibir.";
+    if (!supabase) return "No hay conexión con el servidor.";
+
+    const responsableUp = responsable.toUpperCase().trim();
+    const loteCreatedAt = new Date().toISOString();
+    const entradaMs: Movement[] = resueltos.map((r) => ({
+      id: crypto.randomUUID(),
+      codigo: r.codigo.toUpperCase().trim(),
+      descripcion: r.descripcion.trim(),
+      cantidad: r.cantidad,
+      unidadMedida: r.unidadMedida,
+      costo: r.costo,
+      stockMinimo: 0,
+      valor: Math.round(r.costo * r.cantidad * 100) / 100,
+      fecha,
+      responsable: responsableUp,
+      area: r.area,
+      categoria: r.categoria,
+      tipo: "Entrada",
+      motivo: `Traspaso ${etiquetaTraspaso(t)} de ${cuentaPorAlmacen(t.almacenOrigen)?.nombre ?? t.almacenOrigen}`,
+      createdAt: loteCreatedAt,
+    }));
+
+    const { data, error } = await supabase
+      .from("movements")
+      .insert(entradaMs.map((m) => movementToRow(m, almacen)))
+      .select("id");
+    if (error || !data || data.length !== entradaMs.length) {
+      console.error("Recepción de traspaso: error creando movimientos de entrada", error);
+      if (data && data.length) {
+        await supabase.from("movements").delete().in("id", data.map((r2) => String(r2.id))).eq("almacen", almacen);
+      }
+      return "No se pudo registrar la recepción. Vuelve a intentarlo.";
+    }
+    setMovements((prev) => [...prev, ...entradaMs]);
+
+    const itemsRecibidos: TraspasoItemRecibido[] = resueltos.map((r) => ({
+      codigoOrigen: r.codigoOrigen,
+      codigo: r.codigo.toUpperCase().trim(),
+      descripcion: r.descripcion.trim(),
+      cantidad: r.cantidad,
+      unidadMedida: r.unidadMedida,
+      costo: r.costo,
+      categoria: r.categoria,
+      area: r.area,
+      esNuevo: r.esNuevo,
+    }));
+
+    const { data: updData, error: updError } = await supabase
+      .from("traspasos")
+      .update({
+        estado: "recibido",
+        fecha_recepcion: fecha,
+        responsable_recepcion: responsableUp,
+        items_recibidos: itemsRecibidos,
+        movement_ids_entrada: entradaMs.map((m) => m.id),
+      })
+      .eq("id", traspasoId)
+      .eq("estado", "pendiente")
+      .eq("almacen_destino", almacen)
+      .select("id");
+
+    if (updError || !updData || updData.length !== 1) {
+      console.error("Recepción de traspaso: no se pudo marcar como recibido", updError);
+      const ids = entradaMs.map((m) => m.id);
+      await supabase.from("movements").delete().in("id", ids).eq("almacen", almacen);
+      setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
+      return "Este traspaso ya no estaba pendiente (puede que se haya cancelado). No se registró la recepción.";
+    }
+
+    setTraspasos((prev) =>
+      prev.map((x) =>
+        x.id === traspasoId
+          ? {
+              ...x,
+              estado: "recibido" as TraspasoEstado,
+              fechaRecepcion: fecha,
+              responsableRecepcion: responsableUp,
+              itemsRecibidos,
+              movementIdsEntrada: entradaMs.map((m) => m.id),
+            }
+          : x,
+      ),
+    );
+    toast.success(`Traspaso ${etiquetaTraspaso(t)} recibido.`);
+    return null;
+  }
+
+  // Cancela (origen, antes de que lo reciban) o rechaza (destino, si algo
+  // está mal) un traspaso pendiente. Acá al revés que recibirTraspaso: la
+  // bandera se actualiza PRIMERO (con guardia), y solo si eso confirma se
+  // borran los movimientos de salida del origen. Si el borrado después
+  // fallara a medias, el traspaso ya quedó claramente "cancelado" (nadie
+  // puede intentar recibirlo) y el borrado pendiente es retomable sin
+  // duplicar nada. Al revés sería peor: un traspaso "pendiente" apuntando a
+  // movimientos que ya no existen podría dejar que destino reciba stock que
+  // en realidad nunca se descontó del origen.
+  async function cancelarTraspaso(traspasoId: string, motivo?: string): Promise<string | null> {
+    const t = traspasos.find((x) => x.id === traspasoId);
+    if (!t) return "No se encontró el traspaso.";
+    if (t.estado !== "pendiente") return "Este traspaso ya no está pendiente.";
+    if (t.almacenOrigen !== almacen && t.almacenDestino !== almacen) {
+      return "Este traspaso no te pertenece.";
+    }
+    if (!supabase) return "No hay conexión con el servidor.";
+
+    const motivoLimpio = motivo?.trim() || undefined;
+    const { data: updData, error: updError } = await supabase
+      .from("traspasos")
+      .update({ estado: "cancelado", motivo_cancelacion: motivoLimpio ?? null })
+      .eq("id", traspasoId)
+      .eq("estado", "pendiente")
+      .select("id");
+
+    if (updError || !updData || updData.length !== 1) {
+      console.error("Cancelar traspaso: no se pudo actualizar", updError);
+      return "No se pudo cancelar (puede que ya haya cambiado de estado). Refresca la lista.";
+    }
+
+    setTraspasos((prev) =>
+      prev.map((x) =>
+        x.id === traspasoId ? { ...x, estado: "cancelado" as TraspasoEstado, motivoCancelacion: motivoLimpio } : x,
+      ),
+    );
+
+    // Solo el origen tiene movimientos de salida que restituir.
+    if (t.almacenOrigen === almacen && t.movementIdsSalida.length) {
+      const ids = t.movementIdsSalida;
+      for (let i = 0; i < ids.length; i += 150) {
+        const chunk = ids.slice(i, i + 150);
+        const { error } = await supabase.from("movements").delete().in("id", chunk).eq("almacen", almacen);
+        if (error) {
+          console.error("Cancelar traspaso: error borrando movimientos de salida", error);
+          toast.error(
+            `Traspaso ${etiquetaTraspaso(t)} cancelado, pero no se pudo restituir todo el stock. Revísalo en Salidas.`,
+          );
+          return null;
+        }
+      }
+      setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
+    }
+
+    toast.success(`Traspaso ${etiquetaTraspaso(t)} cancelado.`);
+    return null;
+  }
+
   return (
     <Ctx.Provider
       value={{
+        almacen,
         movements,
         inventory,
         comprobantes,
@@ -815,6 +1233,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         deleteProduct,
         clearAll,
         cerrarAnio,
+        traspasos,
+        proximoNumeroTraspaso,
+        enviarTraspaso,
+        recibirTraspaso,
+        cancelarTraspaso,
       }}
     >
       {children}

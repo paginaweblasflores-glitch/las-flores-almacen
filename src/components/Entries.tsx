@@ -1,8 +1,9 @@
 import { useStore } from "../store";
+import type { CuentaAlmacen } from "../supabaseClient";
 import MovementCart from "./MovementCart";
 import MovementsTable from "./MovementsTable";
 
-export default function Entries() {
+export default function Entries({ cuenta }: { cuenta: CuentaAlmacen }) {
   const { movements } = useStore();
   const entradas = movements.filter((m) => m.tipo === "Entrada").reverse();
   return (
@@ -14,7 +15,7 @@ export default function Entries() {
         </p>
       </div>
 
-      <MovementCart tipo="Entrada" />
+      <MovementCart tipo="Entrada" cuenta={cuenta} />
 
       <MovementsTable
         movements={entradas}

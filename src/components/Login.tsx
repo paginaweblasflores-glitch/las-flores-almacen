@@ -1,9 +1,14 @@
 import { useState } from "react";
-import { LOGIN_EMAIL, LOGIN_USERNAME, supabase } from "../supabaseClient";
+import { CUENTAS, cuentaPorUsuario, supabase, type CuentaAlmacen } from "../supabaseClient";
 
 interface LoginProps {
-  onLogin: () => void;
+  onLogin: (cuenta: CuentaAlmacen) => void;
 }
+
+// Antes de elegir un usuario, la vista previa muestra la marca de la cuenta
+// Administrador (no la del primer almacén de la lista) — es la pantalla que
+// ve cualquiera que todavía no seleccionó nada.
+const VISTA_PREVIA_DEFECTO = CUENTAS.find((c) => c.esAdmin) ?? CUENTAS[0];
 
 export default function Login({ onLogin }: LoginProps) {
   const [username, setUsername] = useState("");
@@ -11,6 +16,10 @@ export default function Login({ onLogin }: LoginProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // La marca (logo + nombre) del panel sigue a lo que se elige acá, para que
+  // se vea de una vez a cuál almacén se está entrando.
+  const cuenta = cuentaPorUsuario(username) ?? VISTA_PREVIA_DEFECTO;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,14 +38,15 @@ export default function Login({ onLogin }: LoginProps) {
       return;
     }
 
-    if (username.trim().toLowerCase() !== LOGIN_USERNAME.toLowerCase()) {
+    const cuentaElegida = cuentaPorUsuario(username);
+    if (!cuentaElegida) {
       setError("Usuario o contraseña incorrectos.");
       setLoading(false);
       return;
     }
 
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email: LOGIN_EMAIL,
+      email: cuentaElegida.email,
       password,
     });
 
@@ -46,7 +56,7 @@ export default function Login({ onLogin }: LoginProps) {
       return;
     }
 
-    onLogin();
+    onLogin(cuentaElegida);
   };
 
   return (
@@ -61,11 +71,12 @@ export default function Login({ onLogin }: LoginProps) {
         <div className="bg-surface rounded-3xl shadow-xl ring-1 ring-line/70 px-8 py-6 sm:px-10">
           {/* Logo */}
           <div className="flex justify-center">
-            <div className="rounded-full border border-brand-200 p-2">
+            <div className="rounded-full border border-brand-200 p-2 overflow-hidden">
               <img
-                src="/logo.png"
-                alt="Consorcio Las Flores"
-                className="w-12 h-12 object-contain"
+                key={cuenta.logo}
+                src={cuenta.logo}
+                alt={cuenta.nombre}
+                className="w-12 h-12 rounded-full object-contain"
               />
             </div>
           </div>
@@ -76,7 +87,8 @@ export default function Login({ onLogin }: LoginProps) {
               Sistema Almacén
             </h1>
             <p className="text-sm text-muted mt-1">
-              Corporación Las Flores · desde 1980
+              {cuenta.nombre}
+              {cuenta.tagline ? ` · ${cuenta.tagline}` : ""}
             </p>
           </div>
 
@@ -107,7 +119,11 @@ export default function Login({ onLogin }: LoginProps) {
                   className="w-full appearance-none rounded-lg border border-line bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-stone-100"
                 >
                   <option value="">Selecciona tu usuario...</option>
-                  <option value={LOGIN_USERNAME}>{LOGIN_USERNAME}</option>
+                  {CUENTAS.map((c) => (
+                    <option key={c.usuario} value={c.usuario}>
+                      {c.usuario}
+                    </option>
+                  ))}
                 </select>
                 <svg
                   className="pointer-events-none absolute inset-y-0 right-0 my-auto mr-3.5 h-5 w-5 text-muted"
@@ -187,7 +203,7 @@ export default function Login({ onLogin }: LoginProps) {
           </form>
 
           <p className="text-center text-[11px] text-muted mt-5">
-            Sistema Almacén · Corporación Las Flores © 2026
+            Sistema Almacén · {cuenta.nombre} © 2026
           </p>
         </div>
       </div>

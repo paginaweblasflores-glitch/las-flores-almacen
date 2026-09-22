@@ -1,10 +1,16 @@
 import { useMemo, useState } from "react";
 import { construirCierre, useStore } from "../store";
 import { useToast } from "../toast";
-import { LOGIN_USERNAME, supabase } from "../supabaseClient";
+import { type CuentaAlmacen } from "../supabaseClient";
 import { descargarHoja, movimientoAFila } from "../utils/excel";
 
-export default function Configuracion({ onVerGuiaCierre }: { onVerGuiaCierre: () => void }) {
+export default function Configuracion({
+  cuenta,
+  onVerGuiaCierre,
+}: {
+  cuenta: CuentaAlmacen;
+  onVerGuiaCierre: () => void;
+}) {
   const { inventory, movements, clearAll, cerrarAnio } = useStore();
   const toast = useToast();
 
@@ -71,46 +77,6 @@ export default function Configuracion({ onVerGuiaCierre }: { onVerGuiaCierre: ()
     toast.success(`Cierre de ${anioACerrar} completado.`);
   }
 
-  // ---- Cambiar contraseña ----
-  const [showPass, setShowPass] = useState(false);
-  const [nueva, setNueva] = useState("");
-  const [repetir, setRepetir] = useState("");
-  const [savingPass, setSavingPass] = useState(false);
-  const [passError, setPassError] = useState("");
-
-  async function handleCambiarPass(e: React.FormEvent) {
-    e.preventDefault();
-    setPassError("");
-
-    if (!supabase) {
-      setPassError("La autenticación no está configurada.");
-      return;
-    }
-    if (!nueva || !repetir) {
-      setPassError("Completa los dos campos.");
-      return;
-    }
-    if (nueva.length < 6) {
-      setPassError("La nueva contraseña debe tener al menos 6 caracteres.");
-      return;
-    }
-    if (nueva !== repetir) {
-      setPassError("La nueva contraseña y su repetición no coinciden.");
-      return;
-    }
-
-    setSavingPass(true);
-    const { error: updError } = await supabase.auth.updateUser({ password: nueva });
-    setSavingPass(false);
-    if (updError) {
-      setPassError("No se pudo cambiar la contraseña. Vuelve a intentarlo.");
-      return;
-    }
-    setNueva("");
-    setRepetir("");
-    toast.success("Contraseña actualizada.");
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -126,72 +92,21 @@ export default function Configuracion({ onVerGuiaCierre }: { onVerGuiaCierre: ()
         <div className="p-5 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">Usuario</span>
-            <span className="text-sm font-medium text-stone-800">{LOGIN_USERNAME}</span>
+            <span className="text-sm font-medium text-stone-800">{cuenta.usuario}</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">Almacén</span>
+            <span className="text-sm font-medium text-stone-800">{cuenta.nombre}</span>
           </div>
 
-          {/* Cambiar contraseña */}
-          <form onSubmit={handleCambiarPass} className="border-t border-stone-100 pt-4 flex flex-col gap-3 max-w-md">
-            <h3 className="text-xs font-bold text-stone-600 uppercase tracking-wider">Cambiar contraseña</h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label htmlFor="cfg-nueva" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                  Nueva contraseña
-                </label>
-                <input
-                  id="cfg-nueva"
-                  type={showPass ? "text" : "password"}
-                  value={nueva}
-                  onChange={(e) => {
-                    setNueva(e.target.value);
-                    setPassError("");
-                  }}
-                  className="input font-mono"
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="cfg-repetir" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                  Repetir nueva
-                </label>
-                <input
-                  id="cfg-repetir"
-                  type={showPass ? "text" : "password"}
-                  value={repetir}
-                  onChange={(e) => {
-                    setRepetir(e.target.value);
-                    setPassError("");
-                  }}
-                  className="input font-mono"
-                  autoComplete="new-password"
-                />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showPass}
-                onChange={(e) => setShowPass(e.target.checked)}
-                className="accent-brand-600"
-              />
-              Mostrar lo que escribo
-            </label>
-
-            {passError && (
-              <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">
-                {passError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={savingPass}
-              className="self-start px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {savingPass ? "Guardando…" : "Cambiar contraseña"}
-            </button>
-          </form>
+          {/* La contraseña ya no se cambia desde acá: solo el Administrador
+              puede cambiarla, desde su propio panel. */}
+          <div className="border-t border-stone-100 pt-4 max-w-md">
+            <h3 className="text-xs font-bold text-stone-600 uppercase tracking-wider mb-2">Cambiar contraseña</h3>
+            <p className="text-xs text-stone-500">
+              Para cambiar la contraseña de esta cuenta, contactá al administrador.
+            </p>
+          </div>
         </div>
       </section>
 

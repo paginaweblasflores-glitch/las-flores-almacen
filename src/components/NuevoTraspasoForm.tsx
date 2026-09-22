@@ -1,33 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
-import { AREAS } from "../types";
-import type { CartLine, MovementType } from "../types";
-import type { CuentaAlmacen } from "../supabaseClient";
-import ComboBox from "./ComboBox";
-import ComprobanteSalida, { usarImpresionComprobante } from "./ComprobanteSalida";
+import type { CartLine } from "../types";
+import { CUENTAS, type CuentaAlmacen } from "../supabaseClient";
+import ComprobanteTraspaso, { usarImpresionTraspaso } from "./ComprobanteTraspaso";
 import { filtrarBusqueda } from "../utils/search";
-
-interface Props {
-  tipo: MovementType;
-  cuenta: CuentaAlmacen;
-}
 
 const todayISO = () => new Date().toISOString().split("T")[0];
 
-export default function MovementCart({ tipo, cuenta }: Props) {
-  const { inventory, areas, addMovements, proximoNumero } = useStore();
-  const esSalida = tipo === "Salida";
+export default function NuevoTraspasoForm({ cuenta }: { cuenta: CuentaAlmacen }) {
+  const { inventory, enviarTraspaso, proximoNumeroTraspaso } = useStore();
+  const otrosAlmacenes = useMemo(
+    () => CUENTAS.filter((c) => c.almacen !== cuenta.almacen && !c.esAdmin),
+    [cuenta.almacen],
+  );
 
   const [lines, setLines] = useState<CartLine[]>([]);
   const [search, setSearch] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [fecha, setFecha] = useState(todayISO());
-  // Solo la Salida usa área destino + responsable (así lo maneja el Excel de Rio).
-  const [areaDestino, setAreaDestino] = useState<string>(areas[0] ?? AREAS[0]);
+  const [almacenDestino, setAlmacenDestino] = useState(otrosAlmacenes[0]?.almacen ?? "");
   const [responsable, setResponsable] = useState("");
-  const [observaciones, setObservaciones] = useState("");
+  const [motivo, setMotivo] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [ticket, mostrarTicket] = usarImpresionComprobante();
+  const [enviando, setEnviando] = useState(false);
+  const [ticket, mostrarTicket] = usarImpresionTraspaso();
   const [error, setError] = useState("");
 
   const searchRef = useRef<HTMLDivElement>(null);
@@ -40,34 +36,22 @@ export default function MovementCart({ tipo, cuenta }: Props) {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  const enCarrito = useMemo(
-    () => new Set(lines.map((l) => l.codigo.toUpperCase().trim())),
-    [lines]
-  );
+  const enCarrito = useMemo(() => new Set(lines.map((l) => l.codigo.toUpperCase().trim())), [lines]);
 
   const results = useMemo(
-    () =>
-      filtrarBusqueda(
-        inventory,
-        search,
-        (i) => i.codigo,
-        (i) => i.descripcion,
-      ).slice(0, 30),
+    () => filtrarBusqueda(inventory, search, (i) => i.codigo, (i) => i.descripcion).slice(0, 30),
     [search, inventory],
   );
 
-  const overStock = (l: CartLine) => esSalida && l.cantidad > l.stockActual;
+  const destinoElegido = otrosAlmacenes.find((c) => c.almacen === almacenDestino);
+  const overStock = (l: CartLine) => l.cantidad > l.stockActual;
   const canSubmit =
-    lines.length > 0 &&
-    (esSalida
-      ? responsable.trim() !== "" && lines.every((l) => !overStock(l))
-      : true);
+    lines.length > 0 && responsable.trim() !== "" && almacenDestino !== "" && lines.every((l) => !overStock(l));
 
   function addLine(item: (typeof inventory)[number]) {
     const key = item.codigo.toUpperCase().trim();
-    // En una salida no se puede retirar un producto agotado.
-    if (esSalida && item.cantidadDisponible <= 0) {
-      setError(`"${item.descripcion}" no tiene stock disponible. No se puede registrar su salida.`);
+    if (item.cantidadDisponible <= 0) {
+      setError(`"${item.descripcion}" no tiene stock disponible. No se puede traspasar.`);
       setSearch("");
       setShowResults(false);
       return;
@@ -76,9 +60,7 @@ export default function MovementCart({ tipo, cuenta }: Props) {
     setLines((prev) => {
       const existing = prev.find((l) => l.codigo.toUpperCase().trim() === key);
       if (existing) {
-        return prev.map((l) =>
-          l.codigo.toUpperCase().trim() === key ? { ...l, cantidad: l.cantidad + 1 } : l
-        );
+        return prev.map((l) => (l.codigo.toUpperCase().trim() === key ? { ...l, cantidad: l.cantidad + 1 } : l));
       }
       return [
         ...prev,
@@ -88,7 +70,6 @@ export default function MovementCart({ tipo, cuenta }: Props) {
           unidadMedida: item.unidadMedida,
           costo: item.costo,
           categoria: item.categoria,
-          area: item.area,
           stockActual: item.cantidadDisponible,
           cantidad: 1,
         },
@@ -113,60 +94,65 @@ export default function MovementCart({ tipo, cuenta }: Props) {
     setConfirmOpen(true);
   }
 
-  function confirmRegister() {
-    const inputs = lines.map((l) => ({
-      codigo: l.codigo.toUpperCase().trim(),
-      descripcion: l.descripcion.trim(),
-      cantidad: l.cantidad,
-      unidadMedida: l.unidadMedida,
-      costo: l.costo,
+  async function confirmRegister() {
+    if (!destinoElegido) return;
+    setEnviando(true);
+    const err = await enviarTraspaso({
+      almacenDestino: destinoElegido.almacen,
+      items: lines.map((l) => ({
+        codigo: l.codigo,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        unidadMedida: l.unidadMedida,
+        costo: l.costo,
+        categoria: l.categoria,
+      })),
       fecha,
-      // Entrada: sin responsable ni área (Rio recibe en el almacén). Salida: los del formulario.
-      responsable: esSalida ? responsable.trim() : "Almacén",
-      area: esSalida ? areaDestino : l.area || "Almacén 1",
-      categoria: l.categoria,
-      tipo,
-      motivo: esSalida && observaciones.trim() ? observaciones.trim() : undefined,
-    }));
-
-    const err = addMovements(inputs);
+      responsable,
+      motivo: motivo.trim() || undefined,
+    });
+    setEnviando(false);
     if (err) {
       setError(err);
       return;
     }
 
-    if (esSalida) {
-      mostrarTicket({
-        numero: proximoNumero("Salida"),
-        almacenNombre: cuenta.nombre,
-        fecha,
-        area: areaDestino,
-        responsable: responsable.trim().toUpperCase(),
-        observaciones: observaciones.trim() || undefined,
-        items: lines.map((l) => ({
-          codigo: l.codigo,
-          descripcion: l.descripcion,
-          cantidad: l.cantidad,
-          unidadMedida: l.unidadMedida || "UNID",
-        })),
-      });
-    }
+    mostrarTicket({
+      numero: proximoNumeroTraspaso(),
+      fecha,
+      almacenOrigenNombre: cuenta.nombre,
+      almacenDestinoNombre: destinoElegido.nombre,
+      responsable: responsable.trim().toUpperCase(),
+      motivo: motivo.trim() || undefined,
+      items: lines.map((l) => ({
+        codigo: l.codigo,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        unidadMedida: l.unidadMedida || "UNID",
+      })),
+    });
 
     setLines([]);
     setResponsable("");
-    setObservaciones("");
+    setMotivo("");
     setConfirmOpen(false);
     setError("");
+  }
+
+  if (otrosAlmacenes.length === 0) {
+    return (
+      <div className="no-print bg-white border border-stone-200 rounded-xl p-5 sm:p-6 text-sm text-stone-500">
+        No hay otro almacén configurado todavía para traspasar mercadería.
+      </div>
+    );
   }
 
   return (
     <>
       <div className="no-print bg-white border border-stone-200 rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs">
         <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${esSalida ? "bg-brand-500" : "bg-leaf-500"}`} />
-          <h2 className="text-sm font-bold text-stone-800 uppercase tracking-wider">
-            {esSalida ? "Registrar salida de productos" : "Registrar entrada de productos"}
-          </h2>
+          <div className="w-2.5 h-2.5 rounded-full bg-brand-500" />
+          <h2 className="text-sm font-bold text-stone-800 uppercase tracking-wider">Enviar traspaso a otro almacén</h2>
         </div>
 
         {/* Buscador */}
@@ -189,7 +175,7 @@ export default function MovementCart({ tipo, cuenta }: Props) {
             <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-72 overflow-auto">
               {results.map((item) => {
                 const ya = enCarrito.has(item.codigo.toUpperCase().trim());
-                const agotado = esSalida && item.cantidadDisponible <= 0;
+                const agotado = item.cantidadDisponible <= 0;
                 const stockColor =
                   item.cantidadDisponible <= 0
                     ? "text-brand-600"
@@ -207,11 +193,7 @@ export default function MovementCart({ tipo, cuenta }: Props) {
                     }`}
                   >
                     {item.imagen ? (
-                      <img
-                        src={item.imagen}
-                        alt=""
-                        className="w-8 h-8 rounded object-cover border border-stone-200 flex-shrink-0"
-                      />
+                      <img src={item.imagen} alt="" className="w-8 h-8 rounded object-cover border border-stone-200 flex-shrink-0" />
                     ) : (
                       <span className="w-8 h-8 rounded bg-stone-100 text-stone-400 flex items-center justify-center flex-shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -311,58 +293,59 @@ export default function MovementCart({ tipo, cuenta }: Props) {
         {/* Campos compartidos */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
-            <label htmlFor="cart-fecha" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+            <label htmlFor="tr-fecha" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
               Fecha
             </label>
+            <input id="tr-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="input" />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="tr-destino" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Almacén destino
+            </label>
+            <select
+              id="tr-destino"
+              value={almacenDestino}
+              onChange={(e) => setAlmacenDestino(e.target.value)}
+              className="input"
+            >
+              {otrosAlmacenes.map((c) => (
+                <option key={c.almacen} value={c.almacen}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1 sm:col-span-2">
+            <label htmlFor="tr-resp" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Responsable <span className="text-stone-400 font-normal lowercase">(quién despacha)</span>
+            </label>
             <input
-              id="cart-fecha"
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+              id="tr-resp"
+              value={responsable}
+              onChange={(e) => {
+                setResponsable(e.target.value);
+                setError("");
+              }}
+              placeholder="Nombre completo"
               className="input"
             />
           </div>
 
-          {esSalida && (
-            <>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                  Área destino <span className="text-stone-400 font-normal lowercase">(elige o escribe otra)</span>
-                </label>
-                <ComboBox id="cart-area" value={areaDestino} options={areas} onChange={setAreaDestino} />
-              </div>
-
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <label htmlFor="cart-resp" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                  Responsable <span className="text-stone-400 font-normal lowercase">(quién retira / pide)</span>
-                </label>
-                <input
-                  id="cart-resp"
-                  value={responsable}
-                  onChange={(e) => {
-                    setResponsable(e.target.value);
-                    setError("");
-                  }}
-                  placeholder="Nombre completo"
-                  className="input"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <label htmlFor="cart-obs" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                  Observaciones <span className="text-stone-400 font-normal lowercase">(opcional)</span>
-                </label>
-                <textarea
-                  id="cart-obs"
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                  placeholder="Comentario sobre esta salida, si hace falta"
-                  rows={2}
-                  className="input resize-y"
-                />
-              </div>
-            </>
-          )}
+          <div className="flex flex-col gap-1 sm:col-span-2">
+            <label htmlFor="tr-motivo" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Motivo <span className="text-stone-400 font-normal lowercase">(opcional)</span>
+            </label>
+            <textarea
+              id="tr-motivo"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Por qué se envía este traspaso, si hace falta"
+              rows={2}
+              className="input resize-y"
+            />
+          </div>
         </div>
 
         {error && (
@@ -374,9 +357,9 @@ export default function MovementCart({ tipo, cuenta }: Props) {
           </div>
         )}
 
-        {esSalida && lines.some((l) => overStock(l)) && (
+        {lines.some((l) => overStock(l)) && (
           <p className="text-xs text-brand-600 font-medium">
-            Hay productos con más cantidad que su stock. Ajusta las cantidades para poder registrar.
+            Hay productos con más cantidad que su stock. Ajusta las cantidades para poder enviar.
           </p>
         )}
 
@@ -384,16 +367,12 @@ export default function MovementCart({ tipo, cuenta }: Props) {
           type="button"
           onClick={handleRegister}
           disabled={!canSubmit}
-          className={`w-full py-3 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:bg-stone-300 disabled:cursor-not-allowed disabled:text-stone-500 ${
-            esSalida
-              ? "bg-brand-600 hover:bg-brand-700 active:bg-brand-800"
-              : "bg-leaf-600 hover:bg-leaf-700 active:bg-leaf-800"
-          }`}
+          className="w-full py-3 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer bg-brand-600 hover:bg-brand-700 active:bg-brand-800 disabled:bg-stone-300 disabled:cursor-not-allowed disabled:text-stone-500"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
           </svg>
-          Registrar {esSalida ? "salida" : "entrada"} ({lines.length})
+          Enviar traspaso ({lines.length})
         </button>
       </div>
 
@@ -402,7 +381,7 @@ export default function MovementCart({ tipo, cuenta }: Props) {
         <div className="no-print fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5 flex flex-col gap-4">
             <h3 className="text-base font-bold text-stone-900">
-              ¿Registrar la {esSalida ? "salida" : "entrada"} de {lines.length} producto{lines.length === 1 ? "" : "s"}?
+              ¿Enviar {lines.length} producto{lines.length === 1 ? "" : "s"} a {destinoElegido?.nombre}?
             </h3>
             <div className="border border-stone-200 rounded-lg divide-y divide-stone-100 max-h-56 overflow-auto text-sm">
               {lines.map((l) => (
@@ -419,42 +398,37 @@ export default function MovementCart({ tipo, cuenta }: Props) {
             </div>
             <div className="text-xs text-stone-500 flex flex-col gap-0.5">
               <span>Fecha: {fecha.split("-").reverse().join("/")}</span>
-              {esSalida && <span>Área destino: {areaDestino}</span>}
-              {esSalida && <span>Responsable: {responsable.trim().toUpperCase()}</span>}
-              {esSalida && observaciones.trim() && <span>Observaciones: {observaciones.trim()}</span>}
-              {esSalida && <span className="text-stone-400">Se imprimirá un comprobante.</span>}
+              <span>Destino: {destinoElegido?.nombre}</span>
+              <span>Responsable: {responsable.trim().toUpperCase()}</span>
+              {motivo.trim() && <span>Motivo: {motivo.trim()}</span>}
+              <span className="text-stone-400">
+                Esto descuenta el stock de tu almacén ahora mismo; {destinoElegido?.nombre} lo recibe cuando lo confirme. Se
+                imprimirá un comprobante.
+              </span>
             </div>
-            {error && (
-              <div className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">
-                {error}
-              </div>
-            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-stone-600 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
+                disabled={enviando}
+                className="px-4 py-2 text-sm font-semibold text-stone-600 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={confirmRegister}
-                className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition-colors cursor-pointer shadow-xs ${
-                  esSalida
-                    ? "bg-brand-600 hover:bg-brand-700"
-                    : "bg-leaf-600 hover:bg-leaf-700"
-                }`}
+                disabled={enviando}
+                className="px-5 py-2 text-sm font-semibold text-white rounded-lg transition-colors cursor-pointer shadow-xs bg-brand-600 hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Confirmar y registrar
+                {enviando ? "Enviando…" : "Confirmar y enviar"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Comprobante de salida — se imprime solo y luego se limpia (ver el hook) */}
-      {ticket && <ComprobanteSalida ticket={ticket} />}
+      {ticket && <ComprobanteTraspaso ticket={ticket} />}
     </>
   );
 }

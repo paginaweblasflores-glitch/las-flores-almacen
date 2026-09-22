@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { StoreProvider } from "./store";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
@@ -10,10 +10,12 @@ import CodeSearch from "./components/CodeSearch";
 import ExportExcel from "./components/ExportExcel";
 import Configuracion from "./components/Configuracion";
 import Comprobantes from "./components/Comprobantes";
+import Traspasos from "./components/Traspasos";
 import GuiaCierreAnual from "./components/GuiaCierreAnual";
-import { supabase } from "./supabaseClient";
+import AdminDashboard from "./components/AdminDashboard";
+import { CUENTA_DEFECTO, cuentaPorEmail, cuentaPorAlmacen, supabase, type CuentaAlmacen } from "./supabaseClient";
 
-type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "comprobantes" | "buscar" | "exportar" | "configuracion" | "guia-cierre";
+type Page = "inicio" | "registrar" | "inventario" | "entradas" | "salidas" | "comprobantes" | "traspasos" | "buscar" | "exportar" | "configuracion" | "guia-cierre";
 
 const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   {
@@ -47,6 +49,11 @@ const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
   },
   {
+    id: "traspasos",
+    label: "Traspasos",
+    icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4" /></svg>,
+  },
+  {
     id: "buscar",
     label: "Buscar producto",
     icon: <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
@@ -63,16 +70,26 @@ const NAV_ITEMS: { id: Page; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-function PageContent({ page, setPage }: { page: Page; setPage: (p: Page) => void }) {
-  if (page === "inicio") return <Dashboard />;
+function PageContent({
+  page,
+  setPage,
+  cuenta,
+}: {
+  page: Page;
+  setPage: (p: Page) => void;
+  cuenta: CuentaAlmacen;
+}) {
+  if (page === "inicio") return <Dashboard cuenta={cuenta} />;
   if (page === "registrar") return <Registrar />;
   if (page === "inventario") return <Inventory />;
-  if (page === "entradas") return <Entries />;
-  if (page === "salidas") return <Exits />;
-  if (page === "comprobantes") return <Comprobantes />;
+  if (page === "entradas") return <Entries cuenta={cuenta} />;
+  if (page === "salidas") return <Exits cuenta={cuenta} />;
+  if (page === "comprobantes") return <Comprobantes cuenta={cuenta} />;
+  if (page === "traspasos") return <Traspasos cuenta={cuenta} />;
   if (page === "buscar") return <CodeSearch />;
   if (page === "exportar") return <ExportExcel />;
-  if (page === "configuracion") return <Configuracion onVerGuiaCierre={() => setPage("guia-cierre")} />;
+  if (page === "configuracion")
+    return <Configuracion cuenta={cuenta} onVerGuiaCierre={() => setPage("guia-cierre")} />;
   if (page === "guia-cierre") return <GuiaCierreAnual onBack={() => setPage("configuracion")} />;
   return null;
 }
@@ -80,8 +97,17 @@ function PageContent({ page, setPage }: { page: Page; setPage: (p: Page) => void
 export default function App() {
   const [page, setPage] = useState<Page>("inicio");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  // Cuenta activa (marca del panel): se deriva del correo de la sesión, no
+  // de lo que se eligió en el login, así es correcta también tras recargar.
+  const [cuenta, setCuenta] = useState<CuentaAlmacen>(CUENTA_DEFECTO);
+  // Solo para la cuenta Administrador: qué almacén está "viendo" ahora mismo
+  // (impersonación por estado de React — la sesión real sigue siendo la del
+  // admin, no hace falta volver a loguearse). null = está en su propio panel.
+  const [verComoAlmacen, setVerComoAlmacen] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -91,23 +117,36 @@ export default function App() {
 
     void supabase.auth.getSession().then(({ data }) => {
       setIsAuthenticated(Boolean(data.session));
+      setCuenta(cuentaPorEmail(data.session?.user.email));
       setAuthLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(Boolean(session));
+      setCuenta(cuentaPorEmail(session?.user.email));
     });
 
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  const handleLogin = () => {
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) setAccountMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const handleLogin = (cuentaElegida: CuentaAlmacen) => {
+    setCuenta(cuentaElegida);
     setIsAuthenticated(true);
   };
 
   const handleLogout = async () => {
     await supabase?.auth.signOut();
     setIsAuthenticated(false);
+    setCuenta(CUENTA_DEFECTO);
+    setVerComoAlmacen(null);
   };
 
   if (authLoading) return null;
@@ -116,8 +155,25 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  if (cuenta.esAdmin && !verComoAlmacen) {
+    return (
+      <AdminDashboard
+        cuenta={cuenta}
+        onEntrar={(almacen) => {
+          setVerComoAlmacen(almacen);
+          setPage("inicio");
+        }}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  const almacenActivo = cuenta.esAdmin ? verComoAlmacen! : cuenta.almacen;
+  const cuentaActiva = cuenta.esAdmin ? (cuentaPorAlmacen(almacenActivo) ?? cuenta) : cuenta;
+  const impersonando = Boolean(cuenta.esAdmin && verComoAlmacen);
+
   return (
-    <StoreProvider>
+    <StoreProvider almacen={almacenActivo}>
       <div className="h-full flex flex-col sm:flex-row bg-canvas">
         {/* Mobile top bar */}
         <div className="sm:hidden flex items-center gap-3 bg-shell text-white px-4 py-3 flex-shrink-0">
@@ -130,7 +186,7 @@ export default function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <img src="/logo.png" alt="Las Flores" className="w-8 h-8 flex-shrink-0 rounded-full bg-white object-contain p-1" />
+          <img src={cuentaActiva.logo} alt={cuentaActiva.nombre} className="w-8 h-8 flex-shrink-0 rounded-full bg-white object-cover" />
           <span className="font-serif font-semibold text-sm tracking-tight">Sistema Almacén</span>
         </div>
 
@@ -151,7 +207,7 @@ export default function App() {
         >
           {/* Title */}
           <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5">
-            <img src="/logo.png" alt="Las Flores" className="w-9 h-9 flex-shrink-0 rounded-full bg-white object-contain p-1" />
+            <img src={cuentaActiva.logo} alt={cuentaActiva.nombre} className="w-9 h-9 flex-shrink-0 rounded-full bg-white object-cover" />
             <span className="font-serif font-semibold text-[15px] tracking-tight whitespace-nowrap">Sistema Almacén</span>
             <button
               onClick={() => setMobileOpen(false)}
@@ -185,17 +241,60 @@ export default function App() {
             ))}
           </nav>
 
-          {/* Cerrar sesión */}
-          <div className="border-t border-white/10 pb-2">
+          {/* Cuenta activa: un solo widget, con "Cerrar sesión" en su menú */}
+          <div className="relative border-t border-white/10 px-2 py-2" ref={accountMenuRef}>
+            {accountMenuOpen && (
+              <div className="absolute bottom-full left-2 right-2 mb-1 bg-stone-800 border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                {impersonando && (
+                  <button
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      setVerComoAlmacen(null);
+                      setPage("inicio");
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors cursor-pointer border-b border-white/10"
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span className="whitespace-nowrap">Volver al panel de {cuenta.nombre}</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-sm text-white/70 hover:text-brand-300 hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  <span className="whitespace-nowrap">Cerrar sesión</span>
+                </button>
+              </div>
+            )}
             <button
-              onClick={handleLogout}
-              title="Cerrar sesión"
-              className="flex w-full items-center gap-3 px-4 py-3 text-sm text-white/50 hover:text-brand-300 hover:bg-white/5 transition-colors"
+              type="button"
+              onClick={() => setAccountMenuOpen((o) => !o)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-white/5 transition-colors cursor-pointer"
             >
-              <svg className="w-4.5 h-4.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              <div className="w-8 h-8 rounded-full bg-white/10 text-white/70 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <p className="text-xs font-semibold text-white truncate flex-1 min-w-0" title={cuentaActiva.nombre}>
+                {cuentaActiva.nombre}
+              </p>
+              <svg
+                className={`w-4 h-4 text-white/40 flex-shrink-0 transition-transform ${accountMenuOpen ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-              <span className="whitespace-nowrap">Cerrar sesión</span>
             </button>
           </div>
         </aside>
@@ -203,7 +302,7 @@ export default function App() {
         {/* Main */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-6xl mx-auto px-4 sm:px-5 py-5 sm:py-6">
-            <PageContent page={page} setPage={setPage} />
+            <PageContent page={page} setPage={setPage} cuenta={cuentaActiva} />
           </div>
         </main>
       </div>

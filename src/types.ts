@@ -121,10 +121,66 @@ export interface Comprobante {
 // Datos para el comprobante impreso de una salida (varios ítems).
 export interface TicketData {
   numero?: string;       // "S-1", "S-2"… (vacío si la salida es anterior a la numeración)
+  almacenNombre: string; // nombre de la cuenta activa (Restaurante Las Flores, Hotel Umaru…)
   fecha: string;
   area: string;          // área destino
   responsable: string;
   observaciones?: string; // nota libre opcional
+  items: { codigo: string; descripcion: string; cantidad: number; unidadMedida: string }[];
+}
+
+export type TraspasoEstado = "pendiente" | "recibido" | "cancelado";
+
+// Un producto tal como lo mandó el almacén de origen (snapshot al enviar).
+export interface TraspasoItem {
+  codigo: string;
+  descripcion: string;
+  cantidad: number;
+  unidadMedida?: string;
+  costo: number;
+  categoria?: string;
+}
+
+// Cómo resolvió el almacén de destino cada ítem al recibir: a qué producto
+// de SU propio inventario quedó (existente o recién creado) y en qué área.
+export interface TraspasoItemRecibido extends TraspasoItem {
+  codigoOrigen: string;
+  area: string;
+  esNuevo: boolean;
+}
+
+// Traspaso de mercadería entre almacenes: lo crea el origen (descuenta su
+// stock al toque) y queda "pendiente" hasta que el destino lo recibe (recién
+// ahí suma su propio stock) o lo rechaza. Es la única entidad que un almacén
+// ve sin ser "dueño" exclusivo de la fila — ver supabase/migration-fase7.sql.
+export interface Traspaso {
+  id: string;
+  numero: number;         // correlativo por almacén de origen ("T-1", "T-2"…)
+  periodo: string;        // año; reinicia cada año, igual que E-/S-
+  almacenOrigen: string;
+  almacenDestino: string;
+  estado: TraspasoEstado;
+  fechaEnvio: string;
+  responsableEnvio: string;
+  motivo?: string;
+  items: TraspasoItem[];
+  movementIdsSalida: string[];
+  fechaRecepcion?: string;
+  responsableRecepcion?: string;
+  itemsRecibidos?: TraspasoItemRecibido[];
+  movementIdsEntrada: string[];
+  motivoCancelacion?: string; // por qué se canceló o rechazó
+  createdAt: string;
+}
+
+// Datos para el comprobante impreso de un traspaso.
+export interface TraspasoTicketData {
+  numero: string;              // "T-1", "T-2"…
+  fecha: string;
+  almacenOrigenNombre: string;
+  almacenDestinoNombre: string;
+  responsable: string;
+  motivo?: string;
   items: { codigo: string; descripcion: string; cantidad: number; unidadMedida: string }[];
 }
 

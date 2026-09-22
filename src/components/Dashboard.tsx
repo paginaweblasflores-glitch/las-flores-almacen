@@ -1,4 +1,5 @@
 import { useStore } from "../store";
+import type { CuentaAlmacen } from "../supabaseClient";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -53,7 +54,7 @@ async function loadImageAsDataURL(url: string): Promise<string> {
   });
 }
 
-export default function Dashboard() {
+export default function Dashboard({ cuenta }: { cuenta: CuentaAlmacen }) {
   const { movements, inventory, categories } = useStore();
   const now = new Date();
   const today = now.toISOString().split("T")[0];
@@ -156,7 +157,7 @@ export default function Dashboard() {
     doc.text("Reporte de Almacén", 32, 12);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("Corporación Las Flores", 32, 18);
+    doc.text(cuenta.nombre, 32, 18);
     doc.setFontSize(7.5);
     doc.text(`Generado el ${generatedAt}`, 32, 23);
 
@@ -256,7 +257,7 @@ export default function Dashboard() {
       doc.setFontSize(7.5);
       doc.setTextColor(139, 130, 121);
       doc.setFont("helvetica", "normal");
-      doc.text("Sistema Almacén · Corporación Las Flores", 14, pageHeight - 7);
+      doc.text(`Sistema Almacén · ${cuenta.nombre}`, 14, pageHeight - 7);
       doc.text(`Página ${p} de ${pageCount}`, pageWidth - 14, pageHeight - 7, { align: "right" });
     }
 

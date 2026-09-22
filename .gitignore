@@ -30,3 +30,4 @@ supabase/import-inventario.sql
 .figma/
 /.plugins/
 /.opencode-skills/
+supabase/.temp/
