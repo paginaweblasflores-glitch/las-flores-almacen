@@ -1,0 +1,745 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import type { Movement, Producto, Traspaso, TraspasoEstado } from "../types";
+import { supabase, cuentaPorAlmacen, type CuentaAlmacen } from "../supabaseClient";
+import { movementFromRow, traspasoFromRow, etiquetaTraspaso } from "../store";
+import { useToast } from "../toast";
+import { filtrarBusqueda } from "../utils/search";
+import Pager from "./Pager";
+
+const PAGE_SIZE_DETALLE = 25;
+
+const ESTADO_LABEL: Record<TraspasoEstado, string> = {
+  pendiente: "Pendiente",
+  recibido: "Recibido",
+  cancelado: "Cancelado",
+};
+const ESTADO_STYLE: Record<TraspasoEstado, string> = {
+  pendiente: "bg-amber-50 text-amber-700 border-amber-200",
+  recibido: "bg-leaf-50 text-leaf-700 border-leaf-200",
+  cancelado: "bg-stone-100 text-stone-500 border-stone-200",
+};
+
+function nombreAlmacen(almacen: string): string {
+  return cuentaPorAlmacen(almacen)?.nombre ?? almacen;
+}
+
+function soles(n: number): string {
+  return n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmt(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
+function fmtFecha(iso: string): string {
+  return iso.split("-").reverse().join("/");
+}
+
+// Productos dados de alta en el catálogo compartido dentro del rango — a
+// diferencia de Producto (types.ts, usado en toda la app), acá sí hace
+// falta created_at/creado_en_almacen, así que se arma un tipo aparte nada
+// más para este módulo en vez de cambiar el tipo compartido.
+interface ProductoNuevo {
+  codigo: string;
+  descripcion: string;
+  categoria?: string;
+  createdAt: string;
+  creadoEnAlmacen: string;
+}
+
+// ---- Atajos de rango de fechas ----
+function inicioSemana(d: Date): Date {
+  const r = new Date(d);
+  const dia = r.getDay(); // 0 = domingo
+  const diff = dia === 0 ? 6 : dia - 1; // lunes como inicio
+  r.setDate(r.getDate() - diff);
+  return r;
+}
+
+const HOY = new Date();
+const PRESETS: { label: string; rango: () => [Date, Date] }[] = [
+  { label: "Hoy", rango: () => [HOY, HOY] },
+  { label: "Esta semana", rango: () => [inicioSemana(HOY), HOY] },
+  { label: "Este mes", rango: () => [new Date(HOY.getFullYear(), HOY.getMonth(), 1), HOY] },
+  {
+    label: "Mes pasado",
+    rango: () => [
+      new Date(HOY.getFullYear(), HOY.getMonth() - 1, 1),
+      new Date(HOY.getFullYear(), HOY.getMonth(), 0),
+    ],
+  },
+  { label: "Este año", rango: () => [new Date(HOY.getFullYear(), 0, 1), HOY] },
+];
+
+// ---- Fetches directos a Supabase, sin StoreProvider (como AdminDashboard):
+// la sesión del administrador tiene es_admin() = true en RLS, así que una
+// consulta sin .eq("almacen", ...) ya trae filas de los dos almacenes.
+async function fetchMovementsFor(
+  client: NonNullable<typeof supabase>,
+  almacen: string,
+  desde: string,
+  hasta: string,
+): Promise<Movement[]> {
+  const PAGE = 1000;
+  const rows: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client
+      .from("movements")
+      .select("*")
+      .eq("almacen", almacen)
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows.map(movementFromRow);
+}
+
+// Trae traspasos donde el envío O la recepción cae en el rango — de acá
+// salen "enviados" y "recibidos" en un solo viaje (se separan al calcular).
+async function fetchTraspasosEnRango(
+  client: NonNullable<typeof supabase>,
+  desde: string,
+  hasta: string,
+): Promise<Traspaso[]> {
+  const PAGE = 1000;
+  const rows: Record<string, unknown>[] = [];
+  const filtro = `and(fecha_envio.gte.${desde},fecha_envio.lte.${hasta}),and(fecha_recepcion.gte.${desde},fecha_recepcion.lte.${hasta})`;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client.from("traspasos").select("*").or(filtro).range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows.map(traspasoFromRow);
+}
+
+async function fetchProductosNuevos(
+  client: NonNullable<typeof supabase>,
+  desde: string,
+  hasta: string,
+): Promise<ProductoNuevo[]> {
+  const PAGE = 1000;
+  const rows: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client
+      .from("productos")
+      .select("codigo, descripcion, categoria, created_at, creado_en_almacen")
+      .gte("created_at", `${desde}T00:00:00`)
+      .lte("created_at", `${hasta}T23:59:59`)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows.map((row) => ({
+    codigo: String(row.codigo ?? ""),
+    descripcion: String(row.descripcion ?? ""),
+    categoria: row.categoria ? String(row.categoria) : undefined,
+    createdAt: String(row.created_at ?? ""),
+    creadoEnAlmacen: String(row.creado_en_almacen ?? ""),
+  }));
+}
+
+// El catálogo COMPLETO (no acotado al rango) — solo para el buscador de
+// "filtrar por producto"; independiente de desde/hasta, se trae una sola
+// vez al montar el módulo.
+async function fetchCatalogoCompleto(client: NonNullable<typeof supabase>): Promise<Producto[]> {
+  const PAGE = 1000;
+  const rows: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client.from("productos").select("codigo, descripcion, unidad_medida, categoria").range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows.map((row) => ({
+    codigo: String(row.codigo ?? ""),
+    descripcion: String(row.descripcion ?? ""),
+    unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
+    categoria: row.categoria ? String(row.categoria) : undefined,
+  }));
+}
+
+// Se etiqueta cada movimiento con su almacén al combinarlos — evita tener
+// que "adivinar" de cuál era después, al pintar la columna Almacén.
+interface MovementConAlmacen extends Movement {
+  almacen: string;
+}
+
+interface Datos {
+  movimientosPorAlmacen: Record<string, Movement[]>;
+  traspasos: Traspaso[];
+  productosNuevos: ProductoNuevo[];
+}
+
+type DetalleTipo = "entradas" | "salidas" | "enviados" | "recibidos" | "productos" | null;
+
+function KpiCard({
+  label,
+  value,
+  sub,
+  accent,
+  onDetalle,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  accent?: string;
+  onDetalle: () => void;
+}) {
+  return (
+    <div className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col gap-2 shadow-xs">
+      <span className="text-[11px] font-medium uppercase tracking-wider text-stone-400">{label}</span>
+      <span className={`text-2xl font-bold ${accent ?? "text-stone-900"}`}>{value.toLocaleString("es-PE")}</span>
+      {sub && <span className="text-xs text-stone-400">{sub}</span>}
+      <button
+        type="button"
+        onClick={onDetalle}
+        disabled={value === 0}
+        className="mt-1 self-start text-xs font-semibold text-brand-700 hover:text-brand-800 disabled:text-stone-300 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
+      >
+        Ver detalle
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+// Modal de detalle genérico: recibe las filas ya filtradas y cómo pintar
+// cada una — la paginación es propia del modal, no del reporte entero.
+function DetalleModal<T>({
+  titulo,
+  filas,
+  columnas,
+  renderFila,
+  onClose,
+}: {
+  titulo: string;
+  filas: T[];
+  columnas: string[];
+  renderFila: (item: T, i: number) => React.ReactNode;
+  onClose: () => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DETALLE);
+  const pageItems = filas.slice((page - 1) * pageSize, page * pageSize);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl p-5 flex flex-col gap-4 my-8">
+        <div className="flex items-start justify-between gap-3 border-b border-stone-100 pb-3">
+          <div>
+            <h3 className="text-base font-bold text-stone-900">{titulo}</h3>
+            <p className="text-sm text-stone-400 mt-0.5">{filas.length} registro{filas.length === 1 ? "" : "s"}</p>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="p-1 text-stone-400 hover:text-stone-700 cursor-pointer">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="border border-stone-200 rounded-lg overflow-hidden">
+          <div className="overflow-auto max-h-[calc(100vh-20rem)]">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider [&>th]:bg-stone-50 [&>th]:border-b [&>th]:border-stone-200">
+                  {columnas.map((c) => (
+                    <th key={c} className="text-left px-3 py-2 whitespace-nowrap">
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-50">{pageItems.map((item, i) => renderFila(item, i))}</tbody>
+            </table>
+          </div>
+          <Pager
+            page={page}
+            pageSize={pageSize}
+            total={filas.length}
+            onPage={setPage}
+            onPageSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-stone-600 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) {
+  const toast = useToast();
+  const [desde, setDesde] = useState(() => fmt(new Date(HOY.getFullYear(), HOY.getMonth(), 1)));
+  const [hasta, setHasta] = useState(() => fmt(HOY));
+  const [almacenFiltro, setAlmacenFiltro] = useState<string>("todos");
+  const [datos, setDatos] = useState<Datos | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [detalle, setDetalle] = useState<DetalleTipo>(null);
+  const [descargando, setDescargando] = useState(false);
+
+  // ---- Filtro por producto (opcional): busca en el catálogo completo,
+  // que se trae una sola vez al montar (no depende del rango de fechas).
+  const [catalogo, setCatalogo] = useState<Producto[]>([]);
+  const [productoCodigo, setProductoCodigo] = useState<string | null>(null);
+  const [busquedaProducto, setBusquedaProducto] = useState("");
+  const [resultadosAbiertos, setResultadosAbiertos] = useState(false);
+  const buscadorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+    fetchCatalogoCompleto(supabase)
+      .then(setCatalogo)
+      .catch((e) => console.error("Error cargando el catálogo para el buscador:", e));
+  }, []);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (buscadorRef.current && !buscadorRef.current.contains(e.target as Node)) setResultadosAbiertos(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const productoSeleccionado = useMemo(
+    () => (productoCodigo ? catalogo.find((p) => p.codigo === productoCodigo) : undefined),
+    [catalogo, productoCodigo],
+  );
+
+  const resultadosProducto = useMemo(
+    () => filtrarBusqueda(catalogo, busquedaProducto, (p) => p.codigo, (p) => p.descripcion).slice(0, 20),
+    [catalogo, busquedaProducto],
+  );
+
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+    let cancelado = false;
+
+    (async () => {
+      setCargando(true);
+      try {
+        const [movsPorAlmacen, traspasos, productosNuevos] = await Promise.all([
+          Promise.all(almacenes.map((c) => fetchMovementsFor(client, c.almacen, desde, hasta))),
+          fetchTraspasosEnRango(client, desde, hasta),
+          fetchProductosNuevos(client, desde, hasta),
+        ]);
+        if (cancelado) return;
+        const movimientosPorAlmacen: Record<string, Movement[]> = {};
+        almacenes.forEach((c, idx) => {
+          movimientosPorAlmacen[c.almacen] = movsPorAlmacen[idx];
+        });
+        setDatos({ movimientosPorAlmacen, traspasos, productosNuevos });
+      } catch (e) {
+        console.error("Error cargando el reporte:", e);
+        toast.error("No se pudo cargar el reporte. Revisa tu conexión.");
+      } finally {
+        if (!cancelado) setCargando(false);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desde, hasta, almacenes, toast]);
+
+  const movimientos = useMemo(() => {
+    if (!datos) return [] as MovementConAlmacen[];
+    const etiquetados = (almacen: string): MovementConAlmacen[] =>
+      (datos.movimientosPorAlmacen[almacen] ?? []).map((m) => ({ ...m, almacen }));
+    const todos = almacenFiltro === "todos" ? almacenes.flatMap((c) => etiquetados(c.almacen)) : etiquetados(almacenFiltro);
+    if (!productoCodigo) return todos;
+    return todos.filter((m) => m.codigo.toUpperCase().trim() === productoCodigo);
+  }, [datos, almacenFiltro, almacenes, productoCodigo]);
+
+  const entradas = useMemo(() => movimientos.filter((m) => m.tipo === "Entrada"), [movimientos]);
+  const salidas = useMemo(() => movimientos.filter((m) => m.tipo === "Salida"), [movimientos]);
+  const unidadesEntradas = entradas.reduce((s, m) => s + m.cantidad, 0);
+  const unidadesSalidas = salidas.reduce((s, m) => s + m.cantidad, 0);
+  const valorEntradas = entradas.reduce((s, m) => s + m.valor, 0);
+  const valorSalidas = salidas.reduce((s, m) => s + m.valor, 0);
+
+  const enviados = useMemo(() => {
+    if (!datos) return [] as Traspaso[];
+    return datos.traspasos.filter(
+      (t) =>
+        (almacenFiltro === "todos" || t.almacenOrigen === almacenFiltro) &&
+        t.fechaEnvio >= desde &&
+        t.fechaEnvio <= hasta &&
+        (!productoCodigo || t.items.some((it) => it.codigo.toUpperCase().trim() === productoCodigo)),
+    );
+  }, [datos, almacenFiltro, desde, hasta, productoCodigo]);
+
+  const recibidos = useMemo(() => {
+    if (!datos) return [] as Traspaso[];
+    return datos.traspasos.filter(
+      (t) =>
+        (almacenFiltro === "todos" || t.almacenDestino === almacenFiltro) &&
+        t.estado === "recibido" &&
+        !!t.fechaRecepcion &&
+        t.fechaRecepcion >= desde &&
+        t.fechaRecepcion <= hasta &&
+        (!productoCodigo || t.items.some((it) => it.codigo.toUpperCase().trim() === productoCodigo)),
+    );
+  }, [datos, almacenFiltro, desde, hasta, productoCodigo]);
+
+  const productosNuevos = useMemo(() => {
+    if (!datos) return [] as ProductoNuevo[];
+    let filtrados = datos.productosNuevos;
+    if (almacenFiltro !== "todos") filtrados = filtrados.filter((p) => p.creadoEnAlmacen === almacenFiltro);
+    if (productoCodigo) filtrados = filtrados.filter((p) => p.codigo.toUpperCase().trim() === productoCodigo);
+    return filtrados;
+  }, [datos, almacenFiltro, productoCodigo]);
+
+  function aplicarPreset(rango: () => [Date, Date]) {
+    const [d, h] = rango();
+    setDesde(fmt(d));
+    setHasta(fmt(h));
+  }
+
+  const mostrarAlmacenCol = almacenFiltro === "todos";
+  const sufijoProducto = productoSeleccionado ? ` · ${productoSeleccionado.descripcion}` : "";
+  const nombreAlmacenFiltro = almacenFiltro === "todos" ? "Los dos almacenes" : nombreAlmacen(almacenFiltro);
+
+  // El PDF refleja exactamente lo que se está mirando en pantalla — mismo
+  // rango, almacén y producto que los filtros de arriba, no una foto aparte.
+  function descargarPdf() {
+    setDescargando(true);
+    try {
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const generatedAt = new Date().toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" });
+
+      doc.setFillColor(41, 37, 36);
+      doc.rect(0, 0, pageWidth, 20, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("Reporte — Sistema Almacén", 14, 10);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(`Generado el ${generatedAt}`, 14, 16);
+
+      doc.setTextColor(30, 30, 30);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`${fmtFecha(desde)} al ${fmtFecha(hasta)}`, 14, 30);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(
+        `Almacén: ${nombreAlmacenFiltro}${productoSeleccionado ? ` · Producto: ${productoSeleccionado.codigo} ${productoSeleccionado.descripcion}` : ""}`,
+        14,
+        36,
+      );
+
+      autoTable(doc, {
+        startY: 42,
+        head: [["Indicador", "Valor"]],
+        body: [
+          ["Entradas", `${entradas.length} (${unidadesEntradas.toLocaleString("es-PE")} unidades, S/ ${soles(valorEntradas)})`],
+          ["Salidas", `${salidas.length} (${unidadesSalidas.toLocaleString("es-PE")} unidades, S/ ${soles(valorSalidas)})`],
+          ["Productos nuevos", String(productosNuevos.length)],
+          ["Traspasos enviados", String(enviados.length)],
+          ["Traspasos recibidos", String(recibidos.length)],
+        ],
+        theme: "grid",
+        headStyles: { fillColor: [200, 55, 42] },
+        styles: { fontSize: 9 },
+      });
+
+      doc.save(`reporte_${desde}_a_${hasta}.pdf`);
+    } catch (e) {
+      console.error("Error generando el reporte:", e);
+      toast.error("No se pudo generar el reporte.");
+    } finally {
+      setDescargando(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">Reportes</h1>
+          <p className="text-sm text-stone-400 mt-0.5">
+            Elige un rango de fechas, un almacén y, si querés acotar a un solo producto, buscalo abajo.
+          </p>
+        </div>
+        <button
+          onClick={descargarPdf}
+          disabled={!datos || descargando}
+          className="btn-brand flex items-center gap-2 px-4 py-2 text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-4.414-4.414A1 1 0 0012.586 4H7a2 2 0 00-2 2v13a2 2 0 002 2z" />
+          </svg>
+          {descargando ? "Generando…" : "Descargar reporte"}
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 flex flex-col gap-4 shadow-xs">
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => aplicarPreset(p.rango)}
+              className="px-3 py-1.5 text-xs font-semibold text-stone-600 border border-stone-200 hover:bg-stone-50 rounded-lg transition-colors cursor-pointer"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="rep-desde" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Desde
+            </label>
+            <input
+              id="rep-desde"
+              type="date"
+              value={desde}
+              max={hasta}
+              onChange={(e) => setDesde(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="rep-hasta" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Hasta
+            </label>
+            <input
+              id="rep-hasta"
+              type="date"
+              value={hasta}
+              min={desde}
+              max={fmt(HOY)}
+              onChange={(e) => setHasta(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="rep-almacen" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+              Almacén
+            </label>
+            <select
+              id="rep-almacen"
+              value={almacenFiltro}
+              onChange={(e) => setAlmacenFiltro(e.target.value)}
+              className="input"
+            >
+              <option value="todos">Los dos almacenes</option>
+              {almacenes.map((c) => (
+                <option key={c.almacen} value={c.almacen}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1" ref={buscadorRef}>
+          <label htmlFor="rep-producto" className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+            Producto <span className="text-stone-400 font-normal lowercase">(opcional — deja vacío para ver todos)</span>
+          </label>
+          {productoSeleccionado ? (
+            <div className="flex items-center justify-between gap-2 border border-leaf-200 bg-leaf-50 rounded-lg px-3 py-2 max-w-md">
+              <span className="text-sm text-stone-800 truncate">
+                <span className="font-mono text-xs text-leaf-700 mr-1.5">{productoSeleccionado.codigo}</span>
+                {productoSeleccionado.descripcion}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setProductoCodigo(null);
+                  setBusquedaProducto("");
+                }}
+                className="text-xs font-semibold text-stone-500 hover:text-stone-800 flex-shrink-0 cursor-pointer"
+              >
+                Quitar
+              </button>
+            </div>
+          ) : (
+            <div className="relative max-w-md">
+              <input
+                id="rep-producto"
+                value={busquedaProducto}
+                onChange={(e) => {
+                  setBusquedaProducto(e.target.value);
+                  setResultadosAbiertos(true);
+                }}
+                onFocus={() => setResultadosAbiertos(true)}
+                placeholder="Buscar por código o nombre…"
+                autoComplete="off"
+                className="input"
+              />
+              {resultadosAbiertos && busquedaProducto && (
+                <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-56 overflow-auto">
+                  {resultadosProducto.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-stone-400">Ningún producto coincide.</p>
+                  ) : (
+                    resultadosProducto.map((p) => (
+                      <button
+                        key={p.codigo}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setProductoCodigo(p.codigo.toUpperCase().trim());
+                          setResultadosAbiertos(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-stone-50 border-b border-stone-50 last:border-0 cursor-pointer"
+                      >
+                        <span className="font-mono text-xs text-brand-700 flex-shrink-0">{p.codigo}</span>
+                        <span className="truncate">{p.descripcion}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {cargando && !datos ? (
+        <p className="text-sm text-stone-400">Cargando reporte…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <KpiCard
+              label="Entradas"
+              value={entradas.length}
+              sub={`${unidadesEntradas.toLocaleString("es-PE")} unidades · S/ ${soles(valorEntradas)}`}
+              accent="text-leaf-600"
+              onDetalle={() => setDetalle("entradas")}
+            />
+            <KpiCard
+              label="Salidas"
+              value={salidas.length}
+              sub={`${unidadesSalidas.toLocaleString("es-PE")} unidades · S/ ${soles(valorSalidas)}`}
+              accent="text-brand-600"
+              onDetalle={() => setDetalle("salidas")}
+            />
+            <KpiCard label="Productos nuevos" value={productosNuevos.length} onDetalle={() => setDetalle("productos")} />
+            <KpiCard label="Traspasos enviados" value={enviados.length} onDetalle={() => setDetalle("enviados")} />
+            <KpiCard label="Traspasos recibidos" value={recibidos.length} onDetalle={() => setDetalle("recibidos")} />
+          </div>
+
+          {cargando && <p className="text-xs text-stone-400">Actualizando…</p>}
+        </>
+      )}
+
+      {detalle === "entradas" && (
+        <DetalleModal
+          titulo={`Entradas — ${fmtFecha(desde)} al ${fmtFecha(hasta)}${sufijoProducto}`}
+          filas={entradas}
+          columnas={["Código", "Producto", "Cantidad", "Fecha", "Responsable", "Área", ...(mostrarAlmacenCol ? ["Almacén"] : [])]}
+          onClose={() => setDetalle(null)}
+          renderFila={(m: MovementConAlmacen) => (
+            <tr key={m.id}>
+              <td className="px-3 py-2 font-mono text-xs text-brand-700">{m.codigo}</td>
+              <td className="px-3 py-2 text-stone-700">{m.descripcion}</td>
+              <td className="px-3 py-2 font-mono text-stone-700">
+                {m.cantidad} {m.unidadMedida}
+              </td>
+              <td className="px-3 py-2 text-stone-500">{fmtFecha(m.fecha)}</td>
+              <td className="px-3 py-2 text-stone-500">{m.responsable}</td>
+              <td className="px-3 py-2 text-stone-500">{m.area}</td>
+              {mostrarAlmacenCol && <td className="px-3 py-2 text-stone-500">{nombreAlmacen(m.almacen)}</td>}
+            </tr>
+          )}
+        />
+      )}
+
+      {detalle === "salidas" && (
+        <DetalleModal
+          titulo={`Salidas — ${fmtFecha(desde)} al ${fmtFecha(hasta)}${sufijoProducto}`}
+          filas={salidas}
+          columnas={["Código", "Producto", "Cantidad", "Fecha", "Responsable", "Área", ...(mostrarAlmacenCol ? ["Almacén"] : [])]}
+          onClose={() => setDetalle(null)}
+          renderFila={(m: MovementConAlmacen) => (
+            <tr key={m.id}>
+              <td className="px-3 py-2 font-mono text-xs text-brand-700">{m.codigo}</td>
+              <td className="px-3 py-2 text-stone-700">{m.descripcion}</td>
+              <td className="px-3 py-2 font-mono text-stone-700">
+                {m.cantidad} {m.unidadMedida}
+              </td>
+              <td className="px-3 py-2 text-stone-500">{fmtFecha(m.fecha)}</td>
+              <td className="px-3 py-2 text-stone-500">{m.responsable}</td>
+              <td className="px-3 py-2 text-stone-500">{m.area}</td>
+              {mostrarAlmacenCol && <td className="px-3 py-2 text-stone-500">{nombreAlmacen(m.almacen)}</td>}
+            </tr>
+          )}
+        />
+      )}
+
+      {detalle === "productos" && (
+        <DetalleModal
+          titulo={`Productos nuevos — ${fmtFecha(desde)} al ${fmtFecha(hasta)}${sufijoProducto}`}
+          filas={productosNuevos}
+          columnas={["Código", "Producto", "Categoría", "Fecha de alta", "Almacén que lo creó"]}
+          onClose={() => setDetalle(null)}
+          renderFila={(p: ProductoNuevo) => (
+            <tr key={p.codigo}>
+              <td className="px-3 py-2 font-mono text-xs text-brand-700">{p.codigo}</td>
+              <td className="px-3 py-2 text-stone-700">{p.descripcion}</td>
+              <td className="px-3 py-2 text-stone-500">{p.categoria ?? "—"}</td>
+              <td className="px-3 py-2 text-stone-500">{fmtFecha(p.createdAt.split("T")[0])}</td>
+              <td className="px-3 py-2 text-stone-500">{nombreAlmacen(p.creadoEnAlmacen)}</td>
+            </tr>
+          )}
+        />
+      )}
+
+      {(detalle === "enviados" || detalle === "recibidos") && (
+        <DetalleModal
+          titulo={
+            detalle === "enviados"
+              ? `Traspasos enviados — ${fmtFecha(desde)} al ${fmtFecha(hasta)}${sufijoProducto}`
+              : `Traspasos recibidos — ${fmtFecha(desde)} al ${fmtFecha(hasta)}${sufijoProducto}`
+          }
+          filas={detalle === "enviados" ? enviados : recibidos}
+          columnas={["N°", "Fecha", "Origen → Destino", "Ítems", "Estado"]}
+          onClose={() => setDetalle(null)}
+          renderFila={(t: Traspaso) => (
+            <tr key={t.id}>
+              <td className="px-3 py-2 font-mono text-xs font-semibold text-stone-600">{etiquetaTraspaso(t)}</td>
+              <td className="px-3 py-2 text-stone-500">
+                {fmtFecha(detalle === "enviados" ? t.fechaEnvio : t.fechaRecepcion ?? t.fechaEnvio)}
+              </td>
+              <td className="px-3 py-2 text-stone-700">
+                {nombreAlmacen(t.almacenOrigen)} <span className="text-stone-300">→</span> {nombreAlmacen(t.almacenDestino)}
+              </td>
+              <td className="px-3 py-2 font-mono text-stone-600">{t.items.length}</td>
+              <td className="px-3 py-2">
+                <span className={`text-[11px] px-2 py-0.5 rounded-full border ${ESTADO_STYLE[t.estado]}`}>
+                  {ESTADO_LABEL[t.estado]}
+                </span>
+              </td>
+            </tr>
+          )}
+        />
+      )}
+    </div>
+  );
+}

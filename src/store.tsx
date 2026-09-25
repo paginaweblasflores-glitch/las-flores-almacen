@@ -218,7 +218,7 @@ function comprobanteToRow(c: Comprobante, almacen: string) {
   };
 }
 
-function traspasoFromRow(row: Record<string, unknown>): Traspaso {
+export function traspasoFromRow(row: Record<string, unknown>): Traspaso {
   const rawItems = Array.isArray(row.items) ? (row.items as Record<string, unknown>[]) : [];
   const rawItemsRecibidos = Array.isArray(row.items_recibidos)
     ? (row.items_recibidos as Record<string, unknown>[])

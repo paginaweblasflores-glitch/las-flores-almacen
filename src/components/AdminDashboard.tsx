@@ -1,24 +1,12 @@
 import { useEffect, useState } from "react";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { supabase, CUENTAS, type CuentaAlmacen } from "../supabaseClient";
 import { buildInventory, movementFromRow } from "../store";
 import { useToast } from "../toast";
 import AdminConfiguracion from "./AdminConfiguracion";
+import Reportes from "./Reportes";
 
 function soles(n: number): string {
   return n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-async function loadImageAsDataURL(url: string): Promise<string> {
-  const res = await fetch(url);
-  const blob = await res.blob();
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
 }
 
 // Trae TODOS los movimientos de un almacén (paginado, igual que store.tsx),
@@ -62,8 +50,6 @@ interface AlmacenStats {
   totalProductos: number;
   totalUnidades: number;
   valorInventario: number;
-  entradas: number;
-  salidas: number;
   porReponer: number;
   sinStock: number;
   traspasosPendientes: number;
@@ -89,8 +75,7 @@ export default function AdminDashboard({
 }) {
   const toast = useToast();
   const [stats, setStats] = useState<AlmacenStats[] | null>(null);
-  const [descargando, setDescargando] = useState(false);
-  const [vista, setVista] = useState<"resumen" | "configuracion">("resumen");
+  const [vista, setVista] = useState<"resumen" | "reportes" | "configuracion">("resumen");
 
   const almacenes = CUENTAS.filter((c) => !c.esAdmin);
 
@@ -128,8 +113,6 @@ export default function AdminDashboard({
             totalProductos: inventory.length,
             totalUnidades: inventory.reduce((s, i) => s + i.cantidadDisponible, 0),
             valorInventario,
-            entradas: movements.filter((m) => m.tipo === "Entrada").length,
-            salidas: movements.filter((m) => m.tipo === "Salida").length,
             porReponer,
             sinStock,
             traspasosPendientes: pendientesPorAlmacen.get(c.almacen) ?? 0,
@@ -148,67 +131,6 @@ export default function AdminDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
-  async function descargarReporte() {
-    if (!stats) return;
-    setDescargando(true);
-    try {
-      const doc = new jsPDF({ unit: "mm", format: "a4" });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const generatedAt = new Date().toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" });
-
-      doc.setFillColor(41, 37, 36);
-      doc.rect(0, 0, pageWidth, 20, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.text(`Reporte de ${cuenta.nombre}`, 14, 10);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(`Generado el ${generatedAt}`, 14, 16);
-
-      let y = 30;
-      for (const s of stats) {
-        const logoDataUrl = await loadImageAsDataURL(s.cuenta.logo).catch(() => null);
-        if (logoDataUrl) {
-          doc.setFillColor(255, 255, 255);
-          doc.circle(18, y - 2, 5.5, "F");
-          doc.addImage(logoDataUrl, "PNG", 13.5, y - 6.5, 9, 9);
-        }
-        doc.setTextColor(30, 30, 30);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.text(s.cuenta.nombre, 27, y);
-
-        autoTable(doc, {
-          startY: y + 4,
-          head: [["Indicador", "Valor"]],
-          body: [
-            ["Productos registrados", String(s.totalProductos)],
-            ["Unidades en stock", s.totalUnidades.toLocaleString("es-PE")],
-            ["Por reponer", String(s.porReponer)],
-            ["Sin stock", String(s.sinStock)],
-            ["Entradas", String(s.entradas)],
-            ["Salidas", String(s.salidas)],
-            ["Traspasos pendientes", String(s.traspasosPendientes)],
-            ["Valor inventario (S/)", soles(s.valorInventario)],
-          ],
-          theme: "grid",
-          headStyles: { fillColor: [200, 55, 42] },
-          styles: { fontSize: 9 },
-        });
-
-        y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
-      }
-
-      doc.save(`reporte_administrador_${new Date().toISOString().split("T")[0]}.pdf`);
-    } catch (e) {
-      console.error("Error generando el reporte:", e);
-      toast.error("No se pudo generar el reporte.");
-    } finally {
-      setDescargando(false);
-    }
-  }
-
   return (
     <div className="h-full flex flex-col bg-canvas overflow-y-auto">
       {/* Header */}
@@ -219,9 +141,19 @@ export default function AdminDashboard({
           <span className="text-[11px] text-white/45">Sistema Almacén</span>
         </div>
         <button
-          onClick={() => setVista(vista === "resumen" ? "configuracion" : "resumen")}
-          title="Configuración"
+          onClick={() => setVista(vista === "reportes" ? "resumen" : "reportes")}
+          title="Reportes"
           className="ml-auto flex items-center gap-2 text-sm text-white/60 hover:text-white transition-colors cursor-pointer"
+        >
+          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 17V9m6 8V5m-11 12h16M4 12l4-4 4 3 5-6" />
+          </svg>
+          <span className="hidden sm:inline">Reportes</span>
+        </button>
+        <button
+          onClick={() => setVista(vista === "configuracion" ? "resumen" : "configuracion")}
+          title="Configuración"
+          className="flex items-center gap-2 text-sm text-white/60 hover:text-white transition-colors cursor-pointer"
         >
           <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -253,25 +185,26 @@ export default function AdminDashboard({
           </button>
           <AdminConfiguracion cuentas={almacenes} />
         </div>
-      ) : (
-      <div className="max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-stone-900">Panel de {cuenta.nombre}</h1>
-            <p className="text-sm text-stone-400 mt-0.5">
-              Resumen de los {almacenes.length} almacenes. Elige uno para entrar a su panel completo.
-            </p>
-          </div>
+      ) : vista === "reportes" ? (
+        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col gap-4">
           <button
-            onClick={descargarReporte}
-            disabled={!stats || descargando}
-            className="btn-brand flex items-center gap-2 px-4 py-2 text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setVista("resumen")}
+            className="self-start text-sm text-stone-500 hover:text-stone-800 font-medium inline-flex items-center gap-1 cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-4.414-4.414A1 1 0 0012.586 4H7a2 2 0 00-2 2v13a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            {descargando ? "Generando…" : "Descargar reporte"}
+            Volver al resumen
           </button>
+          <Reportes almacenes={almacenes} />
+        </div>
+      ) : (
+      <div className="max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">Panel de {cuenta.nombre}</h1>
+          <p className="text-sm text-stone-400 mt-0.5">
+            Resumen de los {almacenes.length} almacenes. Elige uno para entrar a su panel completo.
+          </p>
         </div>
 
         {!stats ? (
@@ -289,13 +222,11 @@ export default function AdminDashboard({
                   <h2 className="text-base font-bold text-stone-900">{s.cuenta.nombre}</h2>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-3 gap-2.5">
                   <KPI label="Productos" value={s.totalProductos} />
                   <KPI label="Unidades" value={s.totalUnidades.toLocaleString("es-PE")} />
                   <KPI label="Por reponer" value={s.porReponer} accent={s.porReponer > 0 ? "text-amber-600" : undefined} />
                   <KPI label="Sin stock" value={s.sinStock} accent={s.sinStock > 0 ? "text-brand-600" : undefined} />
-                  <KPI label="Entradas" value={s.entradas} accent="text-leaf-600" />
-                  <KPI label="Salidas" value={s.salidas} accent="text-brand-600" />
                   <KPI
                     label="Traspasos pendientes"
                     value={s.traspasosPendientes}
