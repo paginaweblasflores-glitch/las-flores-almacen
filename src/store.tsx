@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import type { Movement, InventoryItem, MovementType, Comprobante, Traspaso, TraspasoEstado, TraspasoItem, TraspasoItemRecibido } from "./types";
+import type { Movement, InventoryItem, MovementType, Comprobante, Traspaso, TraspasoEstado, TraspasoItem, TraspasoItemRecibido, Producto } from "./types";
 import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "./types";
 import { supabase, cuentaPorAlmacen } from "./supabaseClient";
 import { useToast } from "./toast";
@@ -12,7 +12,13 @@ function unitCost(m: Movement): number {
   return m.cantidad > 0 ? m.valor / m.cantidad : m.valor;
 }
 
-export function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
+// `catalogo` es opcional: si se pasa (el catálogo compartido completo),
+// todo producto que este almacén todavía no haya movido aparece igual en
+// el inventario, con cantidadDisponible 0 — así Umaru ve desde el día uno
+// los ~333 productos que ya existen en Las Flores, sin tener que esperar a
+// que alguien registre ahí la primera entrada. Sin el parámetro, el
+// comportamiento es el de siempre (inventario = solo lo que se movió).
+export function buildInventory(movements: Movement[], catalogo: Producto[] = []): Map<string, InventoryItem> {
   const map = new Map<string, InventoryItem>();
   for (const m of movements) {
     const key = m.codigo.toUpperCase().trim();
@@ -56,6 +62,24 @@ export function buildInventory(movements: Movement[]): Map<string, InventoryItem
         existing.imagen = m.imagen;
       }
     }
+  }
+  for (const p of catalogo) {
+    const key = p.codigo.toUpperCase().trim();
+    if (map.has(key)) continue;
+    map.set(key, {
+      codigo: p.codigo,
+      descripcion: p.descripcion,
+      cantidadDisponible: 0,
+      unidadMedida: p.unidadMedida,
+      costo: 0,
+      stockMinimo: 0,
+      valor: 0,
+      fechaActualizacion: "",
+      responsable: "",
+      area: "",
+      categoria: p.categoria || DEFAULT_CATEGORIES[0],
+      imagen: p.imagen,
+    });
   }
   return map;
 }
@@ -199,6 +223,9 @@ function traspasoFromRow(row: Record<string, unknown>): Traspaso {
   const rawItemsRecibidos = Array.isArray(row.items_recibidos)
     ? (row.items_recibidos as Record<string, unknown>[])
     : null;
+  const rawItemsRechazados = Array.isArray(row.items_rechazados)
+    ? (row.items_rechazados as Record<string, unknown>[])
+    : null;
   return {
     id: String(row.id),
     numero: Number(row.numero),
@@ -222,7 +249,6 @@ function traspasoFromRow(row: Record<string, unknown>): Traspaso {
     responsableRecepcion: row.responsable_recepcion ? String(row.responsable_recepcion) : undefined,
     itemsRecibidos: rawItemsRecibidos
       ? rawItemsRecibidos.map((it) => ({
-          codigoOrigen: String(it.codigoOrigen ?? ""),
           codigo: String(it.codigo ?? ""),
           descripcion: String(it.descripcion ?? ""),
           cantidad: Number(it.cantidad ?? 0),
@@ -230,7 +256,16 @@ function traspasoFromRow(row: Record<string, unknown>): Traspaso {
           costo: Number(it.costo ?? 0),
           categoria: it.categoria ? String(it.categoria) : undefined,
           area: String(it.area ?? ""),
-          esNuevo: Boolean(it.esNuevo),
+        }))
+      : undefined,
+    itemsRechazados: rawItemsRechazados
+      ? rawItemsRechazados.map((it) => ({
+          codigo: String(it.codigo ?? ""),
+          descripcion: String(it.descripcion ?? ""),
+          cantidad: Number(it.cantidad ?? 0),
+          unidadMedida: it.unidadMedida ? String(it.unidadMedida) : undefined,
+          costo: Number(it.costo ?? 0),
+          categoria: it.categoria ? String(it.categoria) : undefined,
         }))
       : undefined,
     movementIdsEntrada: Array.isArray(row.movement_ids_entrada) ? (row.movement_ids_entrada as unknown[]).map(String) : [],
@@ -255,6 +290,7 @@ function traspasoToRow(t: Traspaso) {
     fecha_recepcion: t.fechaRecepcion ?? null,
     responsable_recepcion: t.responsableRecepcion ?? null,
     items_recibidos: t.itemsRecibidos ?? null,
+    items_rechazados: t.itemsRechazados ?? null,
     movement_ids_entrada: t.movementIdsEntrada,
     motivo_cancelacion: t.motivoCancelacion ?? null,
   };
@@ -262,6 +298,27 @@ function traspasoToRow(t: Traspaso) {
 
 export function etiquetaTraspaso(t: Traspaso): string {
   return `T-${t.numero}`;
+}
+
+function productoFromRow(row: Record<string, unknown>): Producto {
+  return {
+    codigo: String(row.codigo ?? ""),
+    descripcion: String(row.descripcion ?? ""),
+    unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
+    categoria: row.categoria ? String(row.categoria) : undefined,
+    imagen: row.imagen ? String(row.imagen) : undefined,
+  };
+}
+
+function productoToRow(p: Producto, creadoEnAlmacen: string) {
+  return {
+    codigo: p.codigo,
+    descripcion: p.descripcion,
+    unidad_medida: p.unidadMedida ?? null,
+    categoria: p.categoria ?? null,
+    imagen: p.imagen ?? null,
+    creado_en_almacen: creadoEnAlmacen,
+  };
 }
 
 function movementToRow(movement: Movement, almacen: string) {
@@ -313,18 +370,22 @@ export interface EnviarTraspasoInput {
   motivo?: string;
 }
 
-// Cómo resolvió el destino cada línea del traspaso: a qué producto de SU
-// propio inventario queda (existente, con su área ya asignada, o nuevo).
+// `numero` viene del traspaso recién creado (asignado por la base, ver
+// migration-fase14.sql) — no hay que volver a calcularlo del lado del
+// cliente para armar el comprobante impreso.
+export interface EnviarTraspasoResult {
+  error: string | null;
+  numero: number | null;
+}
+
+// Una línea aceptada al recibir un traspaso: el código ya es una identidad
+// compartida (catálogo único), así que lo único que decide el destino es
+// cuánto acepta y en qué área la guarda — no hay que "resolverla" a un
+// producto propio.
 export interface ResueltoTraspasoItem {
-  codigoOrigen: string;
   codigo: string;
-  descripcion: string;
   cantidad: number;
-  unidadMedida?: string;
-  costo: number;
-  categoria?: string;
   area: string;
-  esNuevo: boolean;
 }
 
 interface StoreCtx {
@@ -337,18 +398,18 @@ interface StoreCtx {
   categories: string[];
   unidades: string[];
   areas: string[];
+  productos: Producto[];                // catálogo compartido (todos los almacenes)
   nextCodigo: () => string;
+  crearProductoEnCatalogo: (p: Producto) => Promise<string | null>;
   addMovement: (m: MovementInput) => string | null;
   addMovements: (list: MovementInput[]) => string | null;
   updateMovement: (id: string, updated: MovementInput) => string | null;
   updateProduct: (oldCodigo: string, updated: ProductPatch) => void;
   deleteMovement: (id: string) => void;
   deleteProduct: (codigo: string) => void;
-  clearAll: () => void;
   cerrarAnio: (anio: number) => Promise<CierreResult>;
   traspasos: Traspaso[];
-  proximoNumeroTraspaso: () => string;
-  enviarTraspaso: (input: EnviarTraspasoInput) => Promise<string | null>;
+  enviarTraspaso: (input: EnviarTraspasoInput) => Promise<EnviarTraspasoResult>;
   recibirTraspaso: (
     traspasoId: string,
     resueltos: ResueltoTraspasoItem[],
@@ -416,6 +477,7 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
 
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
   const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
+  const [productos, setProductos] = useState<Producto[]>([]);
 
   useEffect(() => {
     try {
@@ -485,12 +547,31 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       return { data: rows, error: null as null };
     }
 
+    // Catálogo compartido: sin .eq("almacen", ...) a propósito, es la misma
+    // tabla para cualquier cuenta (ver supabase/migration-fase13.sql).
+    async function fetchAllProductos() {
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client!
+          .from("productos")
+          .select("*")
+          .order("codigo", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+      }
+      return { data: rows, error: null as null };
+    }
+
     async function loadFromSupabase() {
-      const [movementResult, categoryResult, comprobanteResult, traspasoResult] = await Promise.all([
+      const [movementResult, categoryResult, comprobanteResult, traspasoResult, productoResult] = await Promise.all([
         fetchAllMovements(),
         client!.from("categories").select("name").eq("almacen", almacen).order("name"),
         fetchAllComprobantes(),
         fetchAllTraspasos(),
+        fetchAllProductos(),
       ]);
 
       if (movementResult.error) {
@@ -518,12 +599,19 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       } else {
         setTraspasos((traspasoResult.data ?? []).map(traspasoFromRow));
       }
+
+      if (productoResult.error) {
+        console.error("Error cargando el catálogo de productos desde Supabase:", productoResult.error);
+        toast.error("No se pudo cargar el catálogo de productos.");
+      } else {
+        setProductos((productoResult.data ?? []).map(productoFromRow));
+      }
     }
 
     void loadFromSupabase();
   }, [toast, almacen]);
 
-  const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
+  const inventory: InventoryItem[] = Array.from(buildInventory(movements, productos).values());
   const numeros = calcularNumeros(comprobantes);
 
   // Entero que le tocará al próximo comprobante de ese tipo, dentro del año en curso.
@@ -597,16 +685,43 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
   const areas = Array.from(new Set([...AREAS, ...usados((m) => m.area)]));
   const categories = Array.from(new Set([...DEFAULT_CATEGORIES, ...dbCategories, ...usados((m) => m.categoria)]));
 
-  // Siguiente código correlativo: máximo código numérico + 1.
+  // Siguiente código correlativo: máximo código numérico del catálogo
+  // COMPLETO + 1 (no solo lo que este almacén ya movió) — así el
+  // correlativo es global de verdad, sin importar qué almacén lo crea.
   function nextCodigo(): string {
     let max = 0;
-    for (const m of movements) {
-      const n = parseInt(m.codigo.trim(), 10);
-      if (!Number.isNaN(n) && String(n) === m.codigo.trim() && n > max) {
+    for (const p of productos) {
+      const n = parseInt(p.codigo.trim(), 10);
+      if (!Number.isNaN(n) && String(n) === p.codigo.trim() && n > max) {
         max = n;
       }
     }
     return String(max + 1);
+  }
+
+  // Da de alta un producto en el catálogo compartido (identidad: código,
+  // descripción, unidad, categoría, imagen — NO stock/costo, eso es de
+  // movements). Se llama ANTES de crear el primer movimiento del producto:
+  // movements.codigo tiene FK a productos.codigo, así que el catálogo tiene
+  // que existir primero. Verificado con `.select()`: si el código ya está
+  // tomado (lo acaba de crear el otro almacén, por ejemplo), no se duplica.
+  async function crearProductoEnCatalogo(p: Producto): Promise<string | null> {
+    if (!supabase) return "No hay conexión con el servidor.";
+    const codigo = p.codigo.toUpperCase().trim();
+    const { data, error } = await supabase
+      .from("productos")
+      .insert(productoToRow({ ...p, codigo }, almacen))
+      .select()
+      .single();
+    if (error || !data) {
+      console.error("Error creando producto en el catálogo:", error);
+      if (error?.code === "23505") {
+        return "Ese código ya existe en el catálogo compartido. Búscalo en vez de crearlo de nuevo.";
+      }
+      return "No se pudo crear el producto en el catálogo. Vuelve a intentarlo.";
+    }
+    setProductos((prev) => [...prev, productoFromRow(data)]);
+    return null;
   }
 
   function addMovement(m: MovementInput): string | null {
@@ -751,14 +866,23 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     return null;
   }
 
+  // Edita el producto en el catálogo compartido (código, descripción,
+  // unidad, categoría, imagen) y, además, los campos propios de MI almacén
+  // (área, costo, stock mínimo) en mis movimientos. Orden a propósito: el
+  // catálogo primero — si se renombra el código, la FK con "on update
+  // cascade" ya deja movements.codigo en el valor nuevo (en los DOS
+  // almacenes) como parte de esa misma actualización, así que el patch de
+  // movimientos de abajo tiene que filtrar por el código NUEVO, no el viejo.
   function updateProduct(oldCodigo: string, updated: ProductPatch) {
     const oldUpper = oldCodigo.toUpperCase().trim();
+    const newUpper = updated.codigo.toUpperCase().trim();
+
     setMovements((prev) =>
       prev.map((m) =>
         m.codigo.toUpperCase().trim() === oldUpper
           ? {
               ...m,
-              codigo: updated.codigo.toUpperCase().trim(),
+              codigo: newUpper,
               descripcion: updated.descripcion.trim(),
               area: updated.area,
               categoria: updated.categoria || m.categoria || categories[0] || DEFAULT_CATEGORIES[0],
@@ -770,24 +894,63 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
           : m
       )
     );
-    if (supabase) {
-      const patch: Record<string, unknown> = {
-        codigo: updated.codigo.toUpperCase().trim(),
-        descripcion: updated.descripcion.trim(),
-        area: updated.area,
-        categoria: updated.categoria ?? null,
-        imagen: updated.imagen ?? null,
-      };
-      if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
-      if (updated.costo !== undefined) patch.costo = updated.costo;
-      if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
-      void supabase.from("movements").update(patch).ilike("codigo", oldCodigo.trim()).eq("almacen", almacen).then(({ error }) => {
+    setProductos((prev) =>
+      prev.map((p) =>
+        p.codigo.toUpperCase().trim() === oldUpper
+          ? {
+              codigo: newUpper,
+              descripcion: updated.descripcion.trim(),
+              unidadMedida: updated.unidadMedida !== undefined ? updated.unidadMedida : p.unidadMedida,
+              categoria: updated.categoria || p.categoria,
+              imagen: updated.imagen !== undefined ? updated.imagen : p.imagen,
+            }
+          : p
+      )
+    );
+
+    if (!supabase) return;
+    const client = supabase;
+
+    const catalogoPatch: Record<string, unknown> = {
+      codigo: newUpper,
+      descripcion: updated.descripcion.trim(),
+      categoria: updated.categoria ?? null,
+      imagen: updated.imagen ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    if (updated.unidadMedida !== undefined) catalogoPatch.unidad_medida = updated.unidadMedida || null;
+
+    void client
+      .from("productos")
+      .update(catalogoPatch)
+      .eq("codigo", oldUpper)
+      .then(({ error }) => {
         if (error) {
-          console.error("Error actualizando producto en Supabase:", error);
-          toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
+          console.error("Error actualizando el catálogo de productos:", error);
+          toast.error("El producto no se actualizó en el catálogo compartido. Vuelve a intentarlo.");
+          return;
         }
+        const patch: Record<string, unknown> = {
+          descripcion: updated.descripcion.trim(),
+          area: updated.area,
+          categoria: updated.categoria ?? null,
+          imagen: updated.imagen ?? null,
+        };
+        if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
+        if (updated.costo !== undefined) patch.costo = updated.costo;
+        if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
+        void client
+          .from("movements")
+          .update(patch)
+          .eq("codigo", newUpper)
+          .eq("almacen", almacen)
+          .then(({ error: movError }) => {
+            if (movError) {
+              console.error("Error actualizando producto en Supabase:", movError);
+              toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
+            }
+          });
       });
-    }
   }
 
   function deleteMovement(id: string) {
@@ -916,46 +1079,6 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     };
   }
 
-  function clearAll() {
-    setMovements([]);
-    setComprobantes([]);
-    if (supabase) {
-      void supabase.from("comprobantes").delete().eq("almacen", almacen).then(({ error }) => {
-        if (error) console.error("Error limpiando comprobantes en Supabase:", error);
-      });
-      void supabase.from("movements").delete().eq("almacen", almacen).then(({ error }) => {
-        if (error) {
-          console.error("Error limpiando movimientos en Supabase:", error);
-          toast.error("No se pudo vaciar el almacén en el servidor.");
-        } else {
-          toast.success("Almacén vaciado.");
-        }
-      });
-    }
-    try {
-      localStorage.removeItem(storageKey);
-    } catch (e) {
-      console.error("Error clearing localStorage:", e);
-    }
-  }
-
-  // Entero que le tocará al próximo traspaso que YO envíe, dentro del año en
-  // curso. A diferencia de `comprobantes` (100% propio), `traspasos` trae
-  // filas de ambas direcciones, así que acá sí hace falta filtrar por
-  // almacenOrigen === almacen explícitamente.
-  function siguienteNumeroTraspaso(): number {
-    const periodo = String(new Date().getFullYear());
-    return (
-      traspasos
-        .filter((t) => t.almacenOrigen === almacen && t.periodo === periodo)
-        .reduce((mx, t) => Math.max(mx, t.numero), 0) + 1
-    );
-  }
-
-  function proximoNumeroTraspaso(): string {
-    return `T-${siguienteNumeroTraspaso()}`;
-  }
-
   // Envía un traspaso: descuenta MI stock al toque (Salida "suelta", sin
   // comprobante E-/S- — el documento de traspaso ya es su propio papel, como
   // los saldos de cierrarAnio) y crea el registro "pendiente" que el destino
@@ -963,9 +1086,9 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
   // vez del simple "sin error" de addMovements: acá perder el insert en
   // silencio significaría mercadería que salió de mi almacén pero nunca
   // aparece pendiente en el otro — se pierde, no es solo un comprobante sin número.
-  async function enviarTraspaso(input: EnviarTraspasoInput): Promise<string | null> {
-    if (input.items.length === 0) return "El carrito está vacío.";
-    if (!supabase) return "No hay conexión con el servidor.";
+  async function enviarTraspaso(input: EnviarTraspasoInput): Promise<EnviarTraspasoResult> {
+    if (input.items.length === 0) return { error: "El carrito está vacío.", numero: null };
+    if (!supabase) return { error: "No hay conexión con el servidor.", numero: null };
 
     const itemsNorm: TraspasoItem[] = input.items.map((it) => ({
       ...it,
@@ -980,7 +1103,7 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       const disponible = running.has(it.codigo) ? (running.get(it.codigo) as number) : inv.get(it.codigo)?.cantidadDisponible ?? 0;
       const restante = disponible - it.cantidad;
       if (restante < 0) {
-        return `Stock insuficiente para "${it.descripcion}". Disponible: ${Math.max(0, disponible)}.`;
+        return { error: `Stock insuficiente para "${it.descripcion}". Disponible: ${Math.max(0, disponible)}.`, numero: null };
       }
       running.set(it.codigo, restante);
     }
@@ -1016,14 +1139,30 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       if (data && data.length) {
         await supabase.from("movements").delete().in("id", data.map((r) => String(r.id))).eq("almacen", almacen);
       }
-      return "No se pudo registrar la salida del traspaso. Vuelve a intentarlo.";
+      return { error: "No se pudo registrar la salida del traspaso. Vuelve a intentarlo.", numero: null };
     }
     setMovements((prev) => [...prev, ...salidaMs]);
 
+    // El número lo asigna la función del lado de la base (atómica, no
+    // depende de qué traspasos pueda ver esta cuenta) — ver
+    // supabase/migration-fase14.sql. Si falla, se compensa igual que un
+    // fallo del insert de arriba: los productos nunca terminaron de salir.
+    const periodo = String(new Date().getFullYear());
+    const { data: numeroData, error: numeroError } = await supabase.rpc("siguiente_numero_traspaso", {
+      p_periodo: periodo,
+    });
+    if (numeroError || numeroData == null) {
+      console.error("Traspaso: error generando el número", numeroError);
+      const ids = salidaMs.map((m) => m.id);
+      await supabase.from("movements").delete().in("id", ids).eq("almacen", almacen);
+      setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
+      return { error: "No se pudo generar el número del traspaso. Vuelve a intentarlo.", numero: null };
+    }
+
     const traspaso: Traspaso = {
       id: crypto.randomUUID(),
-      numero: siguienteNumeroTraspaso(),
-      periodo: String(new Date().getFullYear()),
+      numero: numeroData as number,
+      periodo,
       almacenOrigen: almacen,
       almacenDestino: input.almacenDestino,
       estado: "pendiente",
@@ -1042,20 +1181,29 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       const ids = salidaMs.map((m) => m.id);
       await supabase.from("movements").delete().in("id", ids).eq("almacen", almacen);
       setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
-      return "Los productos no salieron del almacén: no se pudo guardar el traspaso. Vuelve a intentarlo.";
+      return { error: "Los productos no salieron del almacén: no se pudo guardar el traspaso. Vuelve a intentarlo.", numero: null };
     }
 
     setTraspasos((prev) => [traspaso, ...prev]);
     toast.success(`Traspaso ${etiquetaTraspaso(traspaso)} enviado a ${destinoNombre}.`);
-    return null;
+    return { error: null, numero: traspaso.numero };
   }
 
-  // Recibe un traspaso pendiente: crea MIS movimientos de Entrada primero y
-  // recién si eso funciona marca el traspaso como "recibido" (con guardia
-  // `.eq("estado","pendiente")`, verificada). En ese orden a propósito: si
-  // fuera al revés y el insert de movimientos fallara después de marcar
-  // "recibido", quedaría mostrando recibido sin haber sumado stock — peor
-  // que dejarlo en "pendiente" (claramente retomable).
+  // Recibe un traspaso pendiente, línea por línea: lo que viene en
+  // `resueltos` es lo que se ACEPTA (crea MIS movimientos de Entrada); lo
+  // que falta de `t.items` respecto a eso se RECHAZA solo, sin pedir
+  // motivo — se le restituye el stock al origen vía
+  // `traspaso_restituir_rechazados` (esos movimientos son de OTRO almacén;
+  // RLS no me deja tocarlos directo, por eso la función). Si no se acepta
+  // nada, es un rechazo total y se delega a `cancelarTraspaso`.
+  //
+  // Orden a propósito: 1) creo mis movimientos de Entrada (verificado),
+  // 2) restituyo lo rechazado, 3) recién ahí marco "recibido" (con guardia
+  // `.eq("estado","pendiente")`). Si el paso 3 falla, se compensa borrando
+  // lo del paso 1 — el paso 2 queda aplicado, pero es seguro: si se
+  // reintenta todo de nuevo, restituir ids que ya no existen es un no-op.
+  // Si fuera al revés (marcar "recibido" antes de crear los movimientos),
+  // una falla ahí dejaría mostrando recibido sin haber sumado stock.
   async function recibirTraspaso(
     traspasoId: string,
     resueltos: ResueltoTraspasoItem[],
@@ -1066,28 +1214,39 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     if (!t) return "No se encontró el traspaso.";
     if (t.estado !== "pendiente") return "Este traspaso ya no está pendiente.";
     if (t.almacenDestino !== almacen) return "Este traspaso no es para tu almacén.";
-    if (resueltos.length === 0) return "No hay productos para recibir.";
     if (!supabase) return "No hay conexión con el servidor.";
 
+    if (resueltos.length === 0) {
+      return cancelarTraspaso(traspasoId, "Rechazado: no se aceptó ningún producto.");
+    }
+
+    // El código ya es una identidad compartida (catálogo único): descripción,
+    // unidad, costo y categoría se toman del snapshot que mandó el origen
+    // (t.items), no hay que volver a pedirlos — lo único que decide el
+    // destino por línea es cuánto acepta y en qué área.
+    const itemsPorCodigo = new Map(t.items.map((it) => [it.codigo.toUpperCase().trim(), it]));
     const responsableUp = responsable.toUpperCase().trim();
     const loteCreatedAt = new Date().toISOString();
-    const entradaMs: Movement[] = resueltos.map((r) => ({
-      id: crypto.randomUUID(),
-      codigo: r.codigo.toUpperCase().trim(),
-      descripcion: r.descripcion.trim(),
-      cantidad: r.cantidad,
-      unidadMedida: r.unidadMedida,
-      costo: r.costo,
-      stockMinimo: 0,
-      valor: Math.round(r.costo * r.cantidad * 100) / 100,
-      fecha,
-      responsable: responsableUp,
-      area: r.area,
-      categoria: r.categoria,
-      tipo: "Entrada",
-      motivo: `Traspaso ${etiquetaTraspaso(t)} de ${cuentaPorAlmacen(t.almacenOrigen)?.nombre ?? t.almacenOrigen}`,
-      createdAt: loteCreatedAt,
-    }));
+    const entradaMs: Movement[] = resueltos.map((r) => {
+      const origen = itemsPorCodigo.get(r.codigo.toUpperCase().trim());
+      return {
+        id: crypto.randomUUID(),
+        codigo: r.codigo.toUpperCase().trim(),
+        descripcion: (origen?.descripcion ?? "").trim(),
+        cantidad: r.cantidad,
+        unidadMedida: origen?.unidadMedida,
+        costo: origen?.costo ?? 0,
+        stockMinimo: 0,
+        valor: Math.round((origen?.costo ?? 0) * r.cantidad * 100) / 100,
+        fecha,
+        responsable: responsableUp,
+        area: r.area,
+        categoria: origen?.categoria,
+        tipo: "Entrada",
+        motivo: `Traspaso ${etiquetaTraspaso(t)} de ${cuentaPorAlmacen(t.almacenOrigen)?.nombre ?? t.almacenOrigen}`,
+        createdAt: loteCreatedAt,
+      };
+    });
 
     const { data, error } = await supabase
       .from("movements")
@@ -1102,17 +1261,49 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     }
     setMovements((prev) => [...prev, ...entradaMs]);
 
-    const itemsRecibidos: TraspasoItemRecibido[] = resueltos.map((r) => ({
-      codigoOrigen: r.codigoOrigen,
-      codigo: r.codigo.toUpperCase().trim(),
-      descripcion: r.descripcion.trim(),
-      cantidad: r.cantidad,
-      unidadMedida: r.unidadMedida,
-      costo: r.costo,
-      categoria: r.categoria,
-      area: r.area,
-      esNuevo: r.esNuevo,
-    }));
+    // Qué se aceptó y qué no, comparando contra el snapshot original por
+    // código — movementIdsSalida[i] corresponde a items[i] (mismo orden,
+    // ver enviarTraspaso).
+    const aceptadosCodigos = new Set(resueltos.map((r) => r.codigo.toUpperCase().trim()));
+    const itemsRechazados: TraspasoItem[] = t.items.filter((it) => !aceptadosCodigos.has(it.codigo));
+    const movementIdsARestituir: string[] = [];
+    const movementIdsQueQuedan: string[] = [];
+    t.items.forEach((it, idx) => {
+      const movId = t.movementIdsSalida[idx];
+      if (!movId) return;
+      if (aceptadosCodigos.has(it.codigo)) {
+        movementIdsQueQuedan.push(movId);
+      } else {
+        movementIdsARestituir.push(movId);
+      }
+    });
+
+    if (movementIdsARestituir.length) {
+      const { error: restError } = await supabase.rpc("traspaso_restituir_rechazados", {
+        traspaso_id: traspasoId,
+        movement_ids: movementIdsARestituir,
+      });
+      if (restError) {
+        console.error("Recepción parcial: error restituyendo stock de origen", restError);
+        const ids = entradaMs.map((m) => m.id);
+        await supabase.from("movements").delete().in("id", ids).eq("almacen", almacen);
+        setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
+        return "No se pudo restituir el stock de los productos rechazados. Vuelve a intentarlo.";
+      }
+    }
+
+    const itemsRecibidos: TraspasoItemRecibido[] = resueltos.map((r) => {
+      const origen = itemsPorCodigo.get(r.codigo.toUpperCase().trim());
+      return {
+        codigo: r.codigo.toUpperCase().trim(),
+        descripcion: (origen?.descripcion ?? "").trim(),
+        cantidad: r.cantidad,
+        unidadMedida: origen?.unidadMedida,
+        costo: origen?.costo ?? 0,
+        categoria: origen?.categoria,
+        area: r.area,
+      };
+    });
 
     const { data: updData, error: updError } = await supabase
       .from("traspasos")
@@ -1121,7 +1312,9 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
         fecha_recepcion: fecha,
         responsable_recepcion: responsableUp,
         items_recibidos: itemsRecibidos,
+        items_rechazados: itemsRechazados.length ? itemsRechazados : null,
         movement_ids_entrada: entradaMs.map((m) => m.id),
+        movement_ids_salida: movementIdsQueQuedan,
       })
       .eq("id", traspasoId)
       .eq("estado", "pendiente")
@@ -1145,24 +1338,36 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
               fechaRecepcion: fecha,
               responsableRecepcion: responsableUp,
               itemsRecibidos,
+              itemsRechazados: itemsRechazados.length ? itemsRechazados : undefined,
               movementIdsEntrada: entradaMs.map((m) => m.id),
+              movementIdsSalida: movementIdsQueQuedan,
             }
           : x,
       ),
     );
-    toast.success(`Traspaso ${etiquetaTraspaso(t)} recibido.`);
+    toast.success(
+      itemsRechazados.length
+        ? `Traspaso ${etiquetaTraspaso(t)} recibido (${itemsRechazados.length} producto${itemsRechazados.length === 1 ? "" : "s"} rechazado${itemsRechazados.length === 1 ? "" : "s"}).`
+        : `Traspaso ${etiquetaTraspaso(t)} recibido.`,
+    );
     return null;
   }
 
   // Cancela (origen, antes de que lo reciban) o rechaza (destino, si algo
   // está mal) un traspaso pendiente. Acá al revés que recibirTraspaso: la
   // bandera se actualiza PRIMERO (con guardia), y solo si eso confirma se
-  // borran los movimientos de salida del origen. Si el borrado después
-  // fallara a medias, el traspaso ya quedó claramente "cancelado" (nadie
-  // puede intentar recibirlo) y el borrado pendiente es retomable sin
+  // restituyen los movimientos de salida del origen. Si eso después fallara
+  // a medias, el traspaso ya quedó claramente "cancelado" (nadie puede
+  // intentar recibirlo) y la restitución pendiente es retomable sin
   // duplicar nada. Al revés sería peor: un traspaso "pendiente" apuntando a
   // movimientos que ya no existen podría dejar que destino reciba stock que
   // en realidad nunca se descontó del origen.
+  //
+  // Quién restituye depende de quién soy: si soy el origen, son mis propios
+  // movimientos — los borro directo. Si soy el destino rechazando, esos
+  // movimientos son de OTRO almacén; RLS no me deja tocarlos, así que uso
+  // `traspaso_restituir_rechazados` (la misma función que usa la recepción
+  // parcial) en vez de un delete directo.
   async function cancelarTraspaso(traspasoId: string, motivo?: string): Promise<string | null> {
     const t = traspasos.find((x) => x.id === traspasoId);
     if (!t) return "No se encontró el traspaso.";
@@ -1191,21 +1396,34 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       ),
     );
 
-    // Solo el origen tiene movimientos de salida que restituir.
-    if (t.almacenOrigen === almacen && t.movementIdsSalida.length) {
-      const ids = t.movementIdsSalida;
-      for (let i = 0; i < ids.length; i += 150) {
-        const chunk = ids.slice(i, i + 150);
-        const { error } = await supabase.from("movements").delete().in("id", chunk).eq("almacen", almacen);
+    if (t.movementIdsSalida.length) {
+      if (t.almacenOrigen === almacen) {
+        const ids = t.movementIdsSalida;
+        for (let i = 0; i < ids.length; i += 150) {
+          const chunk = ids.slice(i, i + 150);
+          const { error } = await supabase.from("movements").delete().in("id", chunk).eq("almacen", almacen);
+          if (error) {
+            console.error("Cancelar traspaso: error borrando movimientos de salida", error);
+            toast.error(
+              `Traspaso ${etiquetaTraspaso(t)} cancelado, pero no se pudo restituir todo el stock. Revísalo en Salidas.`,
+            );
+            return null;
+          }
+        }
+        setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
+      } else {
+        const { error } = await supabase.rpc("traspaso_restituir_rechazados", {
+          traspaso_id: traspasoId,
+          movement_ids: t.movementIdsSalida,
+        });
         if (error) {
-          console.error("Cancelar traspaso: error borrando movimientos de salida", error);
+          console.error("Rechazar traspaso: error restituyendo stock de origen", error);
           toast.error(
-            `Traspaso ${etiquetaTraspaso(t)} cancelado, pero no se pudo restituir todo el stock. Revísalo en Salidas.`,
+            `Traspaso ${etiquetaTraspaso(t)} rechazado, pero no se pudo restituir el stock del origen. Avísale al otro almacén.`,
           );
           return null;
         }
       }
-      setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
     }
 
     toast.success(`Traspaso ${etiquetaTraspaso(t)} cancelado.`);
@@ -1224,17 +1442,17 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
         categories,
         unidades,
         areas,
+        productos,
         nextCodigo,
+        crearProductoEnCatalogo,
         addMovement,
         addMovements,
         updateMovement,
         updateProduct,
         deleteMovement,
         deleteProduct,
-        clearAll,
         cerrarAnio,
         traspasos,
-        proximoNumeroTraspaso,
         enviarTraspaso,
         recibirTraspaso,
         cancelarTraspaso,

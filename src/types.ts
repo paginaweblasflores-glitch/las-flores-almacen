@@ -129,6 +129,17 @@ export interface TicketData {
   items: { codigo: string; descripcion: string; cantidad: number; unidadMedida: string }[];
 }
 
+// Identidad de producto compartida entre todos los almacenes (catálogo
+// único). El stock, costo y stock mínimo NO viven acá — eso sigue siendo
+// 100% de cada almacén, en Movement/InventoryItem.
+export interface Producto {
+  codigo: string;
+  descripcion: string;
+  unidadMedida?: string;
+  categoria?: string;
+  imagen?: string;
+}
+
 export type TraspasoEstado = "pendiente" | "recibido" | "cancelado";
 
 // Un producto tal como lo mandó el almacén de origen (snapshot al enviar).
@@ -141,12 +152,11 @@ export interface TraspasoItem {
   categoria?: string;
 }
 
-// Cómo resolvió el almacén de destino cada ítem al recibir: a qué producto
-// de SU propio inventario quedó (existente o recién creado) y en qué área.
+// Qué área eligió el destino para cada línea aceptada (el código/nombre/
+// unidad/costo/categoría ya vienen del catálogo compartido, no hace falta
+// "resolverlos" a un producto propio — ver Producto en este mismo archivo).
 export interface TraspasoItemRecibido extends TraspasoItem {
-  codigoOrigen: string;
   area: string;
-  esNuevo: boolean;
 }
 
 // Traspaso de mercadería entre almacenes: lo crea el origen (descuenta su
@@ -155,7 +165,7 @@ export interface TraspasoItemRecibido extends TraspasoItem {
 // ve sin ser "dueño" exclusivo de la fila — ver supabase/migration-fase7.sql.
 export interface Traspaso {
   id: string;
-  numero: number;         // correlativo por almacén de origen ("T-1", "T-2"…)
+  numero: number;         // correlativo GLOBAL entre todos los almacenes ("T-1", "T-2"…), no por origen
   periodo: string;        // año; reinicia cada año, igual que E-/S-
   almacenOrigen: string;
   almacenDestino: string;
@@ -168,6 +178,7 @@ export interface Traspaso {
   fechaRecepcion?: string;
   responsableRecepcion?: string;
   itemsRecibidos?: TraspasoItemRecibido[];
+  itemsRechazados?: TraspasoItem[]; // líneas que el destino rechazó (recepción parcial)
   movementIdsEntrada: string[];
   motivoCancelacion?: string; // por qué se canceló o rechazó
   createdAt: string;

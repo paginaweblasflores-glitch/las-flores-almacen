@@ -30,6 +30,26 @@ create index if not exists movements_codigo_idx on public.movements (upper(trim(
 create index if not exists movements_fecha_idx on public.movements (fecha);
 create index if not exists movements_almacen_idx on public.movements (almacen);
 
+-- Catálogo de productos único y compartido entre almacenes: la identidad
+-- del producto (código, descripción, unidad, categoría, imagen) es una
+-- sola tabla para todos los almacenes. El stock/costo/stock mínimo sigue
+-- siendo 100% de cada almacén — eso vive en movements, no acá.
+create table if not exists public.productos (
+  codigo            text primary key,
+  descripcion       text not null,
+  unidad_medida     text,
+  categoria         text,
+  imagen            text,
+  creado_en_almacen text not null,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+alter table public.movements
+  add constraint movements_codigo_fkey
+  foreign key (codigo) references public.productos (codigo)
+  on update cascade;
+
 -- Copia congelada de cada registro (número correlativo + lista de productos
 -- tal como se registró / imprimió). No cambia aunque se edite o borre un movimiento.
 create table if not exists public.comprobantes (
@@ -71,19 +91,30 @@ create table if not exists public.traspasos (
   fecha_recepcion       date,
   responsable_recepcion text,
   items_recibidos       jsonb,
+  items_rechazados      jsonb,
   movement_ids_entrada  text[] not null default '{}',
   motivo_cancelacion    text,
   created_at            timestamptz not null default now(),
-  unique (almacen_origen, periodo, numero)
+  -- Global, no por almacen_origen: dos almacenes no pueden generar cada
+  -- uno su propio "T-1" — ver migration-fase14.sql.
+  unique (periodo, numero)
 );
 
 create index if not exists traspasos_origen_idx on public.traspasos (almacen_origen);
 create index if not exists traspasos_destino_idx on public.traspasos (almacen_destino);
 
+-- Contador atómico del número de traspaso, por período — ver
+-- siguiente_numero_traspaso() más abajo.
+create table if not exists public.traspaso_contadores (
+  periodo text primary key,
+  ultimo  integer not null default 0
+);
+
 alter table public.categories enable row level security;
 alter table public.movements enable row level security;
 alter table public.comprobantes enable row level security;
 alter table public.traspasos enable row level security;
+alter table public.productos enable row level security;
 
 -- El almacén de la sesión viaja en el JWT (app_metadata), no en un mapeo
 -- de correos hardcodeado dentro de cada política. Ver el paso 4 de
@@ -132,6 +163,30 @@ create policy "movements_por_almacen"
   to authenticated
   using (almacen = public.almacen_actual() or public.es_admin())
   with check (almacen = public.almacen_actual() or public.es_admin());
+
+-- productos: a diferencia de las tablas de arriba, NO se filtra por
+-- almacen_actual() — es el mismo catálogo para todas las cuentas
+-- (cualquier almacenero o el admin lo ve y lo da de alta/edita). Sin
+-- política de "for delete" a propósito: nadie borra un producto del
+-- catálogo compartido desde la app.
+drop policy if exists "productos_select" on public.productos;
+create policy "productos_select"
+  on public.productos for select
+  to authenticated
+  using (true);
+
+drop policy if exists "productos_insert" on public.productos;
+create policy "productos_insert"
+  on public.productos for insert
+  to authenticated
+  with check (true);
+
+drop policy if exists "productos_update" on public.productos;
+create policy "productos_update"
+  on public.productos for update
+  to authenticated
+  using (true)
+  with check (true);
 
 drop policy if exists "comprobantes_public_access" on public.comprobantes;
 drop policy if exists "comprobantes_por_almacen" on public.comprobantes;
@@ -192,18 +247,20 @@ begin
        or new.almacen_destino is distinct from old.almacen_destino
        or new.movement_ids_salida is distinct from old.movement_ids_salida
        or new.movement_ids_entrada is distinct from old.movement_ids_entrada
-       or new.items_recibidos is distinct from old.items_recibidos then
+       or new.items_recibidos is distinct from old.items_recibidos
+       or new.items_rechazados is distinct from old.items_rechazados then
       raise exception 'Al cancelar solo se puede cambiar el estado y el motivo.';
     end if;
   elsif new.estado = 'recibido' then
     if not admin and yo is distinct from old.almacen_destino then
       raise exception 'Solo el almacén destino puede recibir.';
     end if;
+    -- movement_ids_salida SÍ puede achicarse acá (recepción parcial): se le
+    -- sacan los ids de las líneas rechazadas.
     if new.items is distinct from old.items
        or new.numero is distinct from old.numero
        or new.almacen_origen is distinct from old.almacen_origen
        or new.almacen_destino is distinct from old.almacen_destino
-       or new.movement_ids_salida is distinct from old.movement_ids_salida
        or new.motivo_cancelacion is distinct from old.motivo_cancelacion then
       raise exception 'No se pueden modificar los datos de envío.';
     end if;
@@ -220,6 +277,71 @@ create trigger traspasos_before_update
   before update on public.traspasos
   for each row
   execute function public.traspasos_validar_transicion();
+
+-- El destino restituye el stock de origen de las líneas que rechaza. Se
+-- llama desde dos momentos distintos: durante recibirTraspaso (recepción
+-- parcial), con el traspaso TODAVÍA 'pendiente'; y desde cancelarTraspaso
+-- cuando el destino rechaza todo, DESPUÉS de que esa misma función ya
+-- marcó el traspaso 'cancelado' (a propósito: la bandera se actualiza
+-- primero, ver el comentario en store.tsx) — por eso acepta los dos
+-- estados, no solo 'pendiente'. RLS no deja tocar movements de otro
+-- almacén (correcto) — esta función valida caso por caso antes de borrar.
+create or replace function public.traspaso_restituir_rechazados(traspaso_id text, movement_ids text[])
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  t public.traspasos%rowtype;
+begin
+  select * into t from public.traspasos where id = traspaso_id;
+  if t.id is null then
+    raise exception 'No existe el traspaso.';
+  end if;
+  if t.almacen_destino is distinct from public.almacen_actual() and not public.es_admin() then
+    raise exception 'No autorizado.';
+  end if;
+  if t.estado is distinct from 'pendiente' and t.estado is distinct from 'cancelado' then
+    raise exception 'Este traspaso ya no se puede restituir.';
+  end if;
+
+  delete from public.movements
+  where id = any(movement_ids)
+    and id = any(t.movement_ids_salida)
+    and almacen = t.almacen_origen;
+end;
+$$;
+
+grant execute on function public.traspaso_restituir_rechazados(text, text[]) to authenticated;
+
+-- Número de traspaso: correlativo GLOBAL (no por almacen_origen, ver el
+-- unique de la tabla más arriba). Un "select max(numero)+1" desde el
+-- cliente no sirve acá: no es atómico (dos envíos casi simultáneos podrían
+-- calcular el mismo número) y, con RLS, cada cuenta solo ve los traspasos
+-- donde participa — no puede calcular un máximo global por su cuenta. Esta
+-- función corre con permisos propios y hace el incremento con un solo
+-- UPSERT, que Postgres serializa fila por fila.
+alter table public.traspaso_contadores enable row level security;
+
+create or replace function public.siguiente_numero_traspaso(p_periodo text)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  n integer;
+begin
+  insert into public.traspaso_contadores (periodo, ultimo)
+  values (p_periodo, 1)
+  on conflict (periodo) do update set ultimo = public.traspaso_contadores.ultimo + 1
+  returning ultimo into n;
+  return n;
+end;
+$$;
+
+grant execute on function public.siguiente_numero_traspaso(text) to authenticated;
 
 insert into public.categories (name, almacen)
 values

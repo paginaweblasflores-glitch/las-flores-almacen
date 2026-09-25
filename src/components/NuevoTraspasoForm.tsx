@@ -8,7 +8,7 @@ import { filtrarBusqueda } from "../utils/search";
 const todayISO = () => new Date().toISOString().split("T")[0];
 
 export default function NuevoTraspasoForm({ cuenta }: { cuenta: CuentaAlmacen }) {
-  const { inventory, enviarTraspaso, proximoNumeroTraspaso } = useStore();
+  const { inventory, enviarTraspaso } = useStore();
   const otrosAlmacenes = useMemo(
     () => CUENTAS.filter((c) => c.almacen !== cuenta.almacen && !c.esAdmin),
     [cuenta.almacen],
@@ -97,7 +97,7 @@ export default function NuevoTraspasoForm({ cuenta }: { cuenta: CuentaAlmacen })
   async function confirmRegister() {
     if (!destinoElegido) return;
     setEnviando(true);
-    const err = await enviarTraspaso({
+    const { error: err, numero } = await enviarTraspaso({
       almacenDestino: destinoElegido.almacen,
       items: lines.map((l) => ({
         codigo: l.codigo,
@@ -118,7 +118,7 @@ export default function NuevoTraspasoForm({ cuenta }: { cuenta: CuentaAlmacen })
     }
 
     mostrarTicket({
-      numero: proximoNumeroTraspaso(),
+      numero: `T-${numero}`,
       fecha,
       almacenOrigenNombre: cuenta.nombre,
       almacenDestinoNombre: destinoElegido.nombre,

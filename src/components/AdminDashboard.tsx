@@ -36,6 +36,27 @@ async function fetchMovementsFor(client: NonNullable<typeof supabase>, almacen: 
   return rows.map(movementFromRow);
 }
 
+// El catálogo compartido (sin filtro por almacén, es la misma tabla para
+// los dos) — se pasa a buildInventory de cada almacén para que un almacén
+// que todavía no movió un producto lo cuente igual, con 0 de stock.
+async function fetchCatalogo(client: NonNullable<typeof supabase>) {
+  const PAGE = 1000;
+  const rows: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client.from("productos").select("*").range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows.map((row) => ({
+    codigo: String(row.codigo ?? ""),
+    descripcion: String(row.descripcion ?? ""),
+    unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
+    categoria: row.categoria ? String(row.categoria) : undefined,
+    imagen: row.imagen ? String(row.imagen) : undefined,
+  }));
+}
+
 interface AlmacenStats {
   cuenta: CuentaAlmacen;
   totalProductos: number;
@@ -80,9 +101,10 @@ export default function AdminDashboard({
 
     (async () => {
       try {
-        const [movsPorAlmacen, traspasosRes] = await Promise.all([
+        const [movsPorAlmacen, traspasosRes, catalogo] = await Promise.all([
           Promise.all(almacenes.map((c) => fetchMovementsFor(client, c.almacen))),
           client.from("traspasos").select("almacen_destino").eq("estado", "pendiente"),
+          fetchCatalogo(client),
         ]);
         if (cancelado) return;
         if (traspasosRes.error) throw traspasosRes.error;
@@ -95,7 +117,7 @@ export default function AdminDashboard({
 
         const nuevo: AlmacenStats[] = almacenes.map((c, idx) => {
           const movements = movsPorAlmacen[idx];
-          const inventory = Array.from(buildInventory(movements).values());
+          const inventory = Array.from(buildInventory(movements, catalogo).values());
           const valorInventario = inventory.reduce((s, i) => s + Math.max(0, i.cantidadDisponible) * i.costo, 0);
           const porReponer = inventory.filter(
             (i) => i.stockMinimo > 0 && i.cantidadDisponible > 0 && i.cantidadDisponible <= i.stockMinimo,

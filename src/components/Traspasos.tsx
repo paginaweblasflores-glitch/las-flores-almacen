@@ -221,6 +221,22 @@ export default function Traspasos({ cuenta }: { cuenta: CuentaAlmacen }) {
               )}
             </div>
 
+            {detalle.itemsRechazados && detalle.itemsRechazados.length > 0 && (
+              <div className="text-xs bg-brand-50 border border-brand-200 rounded-lg px-3 py-2.5 text-brand-800">
+                <p className="font-semibold mb-1">
+                  {detalle.itemsRechazados.length} producto{detalle.itemsRechazados.length === 1 ? "" : "s"} rechazado
+                  {detalle.itemsRechazados.length === 1 ? "" : "s"} (no sumó stock):
+                </p>
+                <ul className="list-disc list-inside">
+                  {detalle.itemsRechazados.map((it) => (
+                    <li key={it.codigo}>
+                      {it.descripcion} — {it.cantidad} {it.unidadMedida}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="border border-stone-200 rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead>

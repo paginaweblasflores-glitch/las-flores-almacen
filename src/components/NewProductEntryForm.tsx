@@ -20,11 +20,12 @@ const emptyForm = (defaultCat?: string) => ({
 });
 
 export default function NewProductEntryForm() {
-  const { inventory, categories, unidades, areas, addMovement, nextCodigo } = useStore();
+  const { productos, categories, unidades, areas, addMovement, crearProductoEnCatalogo, nextCodigo } = useStore();
   const [form, setForm] = useState(() => emptyForm(categories[0] || DEFAULT_CATEGORIES[0]));
   const [autoCodigo, setAutoCodigo] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [imageFieldKey, setImageFieldKey] = useState(0);
 
   // Autonumeración del código mientras el usuario no lo haya editado a mano.
@@ -34,9 +35,11 @@ export default function NewProductEntryForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCodigo]);
 
+  // El código es del catálogo COMPARTIDO: puede existir aunque este almacén
+  // nunca lo haya movido (por ejemplo, si el otro almacén ya lo creó).
   const codigoExistente =
     form.codigo.trim() !== "" &&
-    inventory.find((i) => normalizar(i.codigo) === normalizar(form.codigo));
+    productos.find((p) => normalizar(p.codigo) === normalizar(form.codigo));
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -50,11 +53,13 @@ export default function NewProductEntryForm() {
     setImageFieldKey((k) => k + 1); // remonta el campo de imagen, limpio
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     if (codigoExistente) {
-      setError("Ese código ya existe. Registra su entrada desde el carrito de arriba.");
+      setError(
+        `Ese código ya es "${codigoExistente.descripcion}" en el catálogo compartido. Si es el mismo producto, regístralo desde el carrito de Entradas; si no, cambia el código.`,
+      );
       return;
     }
 
@@ -80,6 +85,22 @@ export default function NewProductEntryForm() {
       return;
     }
 
+    setSubmitting(true);
+    // El código tiene que existir en el catálogo compartido ANTES del
+    // primer movimiento (movements.codigo tiene FK a productos.codigo).
+    const catalogoErr = await crearProductoEnCatalogo({
+      codigo: form.codigo.toUpperCase().trim(),
+      descripcion: form.descripcion.trim(),
+      unidadMedida: form.unidadMedida,
+      categoria: form.categoria,
+      imagen: form.imagen ? form.imagen : undefined,
+    });
+    if (catalogoErr) {
+      setSubmitting(false);
+      setError(catalogoErr);
+      return;
+    }
+
     const err = addMovement({
       codigo: form.codigo.toUpperCase().trim(),
       descripcion: form.descripcion.trim(),
@@ -95,6 +116,7 @@ export default function NewProductEntryForm() {
       imagen: form.imagen ? form.imagen : undefined,
     });
 
+    setSubmitting(false);
     if (err) {
       setError(err);
     } else {
@@ -250,13 +272,13 @@ export default function NewProductEntryForm() {
 
       <button
         type="submit"
-        disabled={Boolean(codigoExistente)}
+        disabled={Boolean(codigoExistente) || submitting}
         className="w-full py-3 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer bg-leaf-600 hover:bg-leaf-700 active:bg-leaf-800 disabled:bg-stone-300 disabled:cursor-not-allowed disabled:text-stone-500"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
-        Registrar producto nuevo
+        {submitting ? "Registrando…" : "Registrar producto nuevo"}
       </button>
     </form>
   );

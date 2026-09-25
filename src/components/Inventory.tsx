@@ -146,27 +146,38 @@ export default function Inventory() {
                   <td className="px-4 py-3 text-right font-mono text-xs text-stone-400">{item.stockMinimo > 0 ? item.stockMinimo : "—"}</td>
                   <td className="px-4 py-3 text-stone-500 text-xs">{item.unidadMedida || "—"}</td>
                   <td className="px-4 py-3 text-right font-mono text-stone-600">S/ {item.costo.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-stone-500">{item.fechaActualizacion.split("-").reverse().join("/")}</td>
+                  <td className="px-4 py-3 text-stone-500">
+                    {item.fechaActualizacion ? item.fechaActualizacion.split("-").reverse().join("/") : "—"}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{item.area}</span>
+                    {item.area ? (
+                      <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{item.area}</span>
+                    ) : (
+                      <span className="text-xs text-stone-300">sin movimientos</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {deletingCode === item.codigo ? (
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => handleDeleteProduct(item.codigo)}
-                          className="px-2 py-0.5 bg-brand-600 text-white rounded text-[11px] font-semibold hover:bg-brand-700 cursor-pointer"
-                          title="Confirmar eliminación de este producto y sus registros"
-                        >
-                          Eliminar
-                        </button>
-                        <button
-                          onClick={() => setDeletingCode(null)}
-                          className="px-2 py-0.5 bg-stone-200 text-stone-700 rounded text-[11px] hover:bg-stone-300 cursor-pointer"
-                          title="Cancelar"
-                        >
-                          No
-                        </button>
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleDeleteProduct(item.codigo)}
+                            className="px-2 py-0.5 bg-brand-600 text-white rounded text-[11px] font-semibold hover:bg-brand-700 cursor-pointer"
+                            title="Confirmar eliminación de este producto y sus registros"
+                          >
+                            Eliminar
+                          </button>
+                          <button
+                            onClick={() => setDeletingCode(null)}
+                            className="px-2 py-0.5 bg-stone-200 text-stone-700 rounded text-[11px] hover:bg-stone-300 cursor-pointer"
+                            title="Cancelar"
+                          >
+                            No
+                          </button>
+                        </div>
+                        <span className="text-[10px] text-stone-400 max-w-[10rem] leading-tight">
+                          Borra tu historial local. Sigue en el catálogo compartido para el otro almacén.
+                        </span>
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-1">
@@ -182,7 +193,7 @@ export default function Inventory() {
                         <button
                           onClick={() => setDeletingCode(item.codigo)}
                           className="p-1.5 text-stone-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
-                          title="Eliminar producto y todos sus movimientos"
+                          title="Eliminar tu historial local de este producto (sigue en el catálogo compartido)"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
