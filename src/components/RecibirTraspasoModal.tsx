@@ -166,6 +166,7 @@ export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: 
                       min="1"
                       value={l.cantidad}
                       onChange={(e) => updateLinea(idx, { cantidad: e.target.value })}
+                      onFocus={(e) => e.target.select()}
                       className="input font-mono mt-0.5"
                     />
                   </div>

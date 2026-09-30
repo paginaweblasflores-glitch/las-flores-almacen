@@ -282,6 +282,7 @@ export default function NuevoTraspasoForm({ cuenta }: { cuenta: CuentaAlmacen })
                           min="1"
                           value={l.cantidad}
                           onChange={(e) => setQty(l.codigo, e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           className={`input font-mono text-right w-24 ${over ? "border-brand-400 bg-brand-50/40 text-brand-800" : ""}`}
                         />
                       </td>

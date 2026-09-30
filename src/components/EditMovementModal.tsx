@@ -149,6 +149,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
                 min="1"
                 value={form.cantidad}
                 onChange={(e) => setForm({ ...form, cantidad: e.target.value })}
+                onFocus={(e) => e.target.select()}
                 className="input font-mono"
                 required
               />
@@ -175,6 +176,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
                 step="0.01"
                 value={form.costo}
                 onChange={(e) => setForm({ ...form, costo: e.target.value })}
+                onFocus={(e) => e.target.select()}
                 className="input font-mono"
                 required
               />
@@ -188,6 +190,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
                 min="0"
                 value={form.stockMinimo}
                 onChange={(e) => setForm({ ...form, stockMinimo: e.target.value })}
+                onFocus={(e) => e.target.select()}
                 className="input font-mono"
                 placeholder="0"
               />

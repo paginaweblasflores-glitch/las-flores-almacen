@@ -277,6 +277,7 @@ export default function NewProductEntryForm() {
             min="1"
             value={form.cantidad}
             onChange={(e) => set("cantidad", e.target.value)}
+            onFocus={(e) => e.target.select()}
             placeholder="0"
             className="input font-mono"
           />
@@ -309,6 +310,7 @@ export default function NewProductEntryForm() {
             step="0.01"
             value={form.costo}
             onChange={(e) => set("costo", e.target.value)}
+            onFocus={(e) => e.target.select()}
             placeholder="0.00"
             className="input font-mono"
           />
@@ -321,6 +323,7 @@ export default function NewProductEntryForm() {
             min="0"
             value={form.stockMinimo}
             onChange={(e) => set("stockMinimo", e.target.value)}
+            onFocus={(e) => e.target.select()}
             placeholder="0"
             className="input font-mono"
           />

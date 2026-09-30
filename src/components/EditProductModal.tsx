@@ -126,6 +126,7 @@ export default function EditProductModal({ product, onClose }: Props) {
                 step="0.01"
                 value={costo}
                 onChange={(e) => setCosto(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="input font-mono"
                 placeholder="0.00"
               />
@@ -137,6 +138,7 @@ export default function EditProductModal({ product, onClose }: Props) {
                 min="0"
                 value={stockMinimo}
                 onChange={(e) => setStockMinimo(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="input font-mono"
                 placeholder="0"
                 title="Punto de reorden: alerta cuando el disponible baje de este valor"
