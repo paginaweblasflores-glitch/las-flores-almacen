@@ -95,6 +95,7 @@ export default function EditProductModal({ product, onClose }: Props) {
               className="input font-mono uppercase"
               required
             />
+            <p className="text-[11px] text-stone-400">Es local a tu almacén: cambiarlo no afecta al otro.</p>
           </div>
 
           {/* Descripción */}
@@ -107,7 +108,7 @@ export default function EditProductModal({ product, onClose }: Props) {
               required
             />
             <p className="text-[11px] text-stone-400">
-              El código y la descripción son del catálogo compartido: este cambio también se va a ver en el otro almacén.
+              La descripción es del catálogo compartido: este cambio también se va a ver en el otro almacén.
             </p>
           </div>
 

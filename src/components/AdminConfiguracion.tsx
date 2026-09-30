@@ -141,14 +141,17 @@ function FilaCuenta({ cuenta }: { cuenta: CuentaAlmacen }) {
   );
 }
 
-// Borra el catálogo COMPARTIDO completo (productos.codigo/descripción/
-// unidad/categoría) — a diferencia de "Vaciar almacén", esto no es "de una
-// cuenta": es una sola tabla para los dos almacenes, así que no hay forma
-// de borrarla "solo para uno". No se cascadea el borrado de movements a
-// propósito: si todavía hay entradas/salidas que referencian un código
-// (la FK movements_codigo_fkey), Postgres rechaza el delete solo — eso es
-// la red de seguridad real, no algo que la UI decida. El mensaje de error
-// se lo explica al admin en vez de dejarlo en un error crudo de Postgres.
+// Borra el catálogo MAESTRO completo (productos: descripción/unidad/
+// categoría/imagen, cada fila identificada por `id`) — a diferencia de
+// "Vaciar almacén", esto no es "de una cuenta": es una sola tabla para los
+// dos almacenes, así que no hay forma de borrarla "solo para uno". Al
+// borrar un producto se cascadea su fila de producto_codigos en cada
+// almacén (on delete cascade, ver migration-fase17.sql), pero NO se
+// cascadea de ahí a movements a propósito: si todavía hay entradas o
+// salidas que referencian ese código (movements_codigo_almacen_fkey),
+// Postgres rechaza el delete completo — esa es la red de seguridad real,
+// no algo que la UI decida. El mensaje de error se lo explica al admin en
+// vez de dejarlo en un error crudo de Postgres.
 function EliminarCatalogo() {
   const toast = useToast();
   const [abierto, setAbierto] = useState(false);
@@ -169,7 +172,7 @@ function EliminarCatalogo() {
     setCargandoConteo(true);
     const { count, error: countError } = await supabase
       .from("productos")
-      .select("codigo", { count: "exact", head: true });
+      .select("id", { count: "exact", head: true });
     setCargandoConteo(false);
     if (countError) {
       console.error("Error contando el catálogo:", countError);
@@ -188,7 +191,7 @@ function EliminarCatalogo() {
     if (!supabase) return;
     setBorrando(true);
     setError("");
-    const { error: delError } = await supabase.from("productos").delete().not("codigo", "is", null);
+    const { error: delError } = await supabase.from("productos").delete().not("id", "is", null);
     setBorrando(false);
     if (delError) {
       console.error("Error eliminando el catálogo:", delError);

@@ -31,11 +31,16 @@ create index if not exists movements_fecha_idx on public.movements (fecha);
 create index if not exists movements_almacen_idx on public.movements (almacen);
 
 -- Catálogo de productos único y compartido entre almacenes: la identidad
--- del producto (código, descripción, unidad, categoría, imagen) es una
--- sola tabla para todos los almacenes. El stock/costo/stock mínimo sigue
--- siendo 100% de cada almacén — eso vive en movements, no acá.
+-- del producto (descripción, unidad, categoría, imagen) es una sola tabla
+-- para todos los almacenes. El stock/costo/stock mínimo sigue siendo 100%
+-- de cada almacén — eso vive en movements, no acá. La identidad es `id`
+-- (interno, invisible para el usuario) — el código que cada almacén ve,
+-- imprime y busca es independiente por almacén, ver `producto_codigos`
+-- abajo (antes `codigo` vivía acá mismo como PK y era compartido entre
+-- los dos almacenes, lo que obligaba a una numeración global; ver
+-- migration-fase17.sql).
 create table if not exists public.productos (
-  codigo            text primary key,
+  id                uuid primary key default gen_random_uuid(),
   descripcion       text not null,
   unidad_medida     text,
   categoria         text,
@@ -45,9 +50,22 @@ create table if not exists public.productos (
   updated_at        timestamptz not null default now()
 );
 
+-- Código local: el mismo producto (mismo `producto_id`) puede tener un
+-- código distinto en cada almacén, o ninguno todavía (si ese almacén nunca
+-- lo movió). El correlativo de cada almacén (nextCodigo() en store.tsx)
+-- escanea solo sus propias filas acá, así que cada almacén empieza en 1.
+create table if not exists public.producto_codigos (
+  almacen      text not null,
+  producto_id  uuid not null references public.productos (id) on delete cascade,
+  codigo       text not null,
+  created_at   timestamptz not null default now(),
+  primary key (almacen, codigo),
+  unique (almacen, producto_id)
+);
+
 alter table public.movements
-  add constraint movements_codigo_fkey
-  foreign key (codigo) references public.productos (codigo)
+  add constraint movements_codigo_almacen_fkey
+  foreign key (almacen, codigo) references public.producto_codigos (almacen, codigo)
   on update cascade;
 
 -- Copia congelada de cada registro (número correlativo + lista de productos
@@ -115,6 +133,7 @@ alter table public.movements enable row level security;
 alter table public.comprobantes enable row level security;
 alter table public.traspasos enable row level security;
 alter table public.productos enable row level security;
+alter table public.producto_codigos enable row level security;
 
 -- El almacén de la sesión viaja en el JWT (app_metadata), no en un mapeo
 -- de correos hardcodeado dentro de cada política. Ver el paso 4 de
@@ -187,6 +206,34 @@ create policy "productos_update"
   to authenticated
   using (true)
   with check (true);
+
+-- producto_codigos: el código local SÍ es por almacén — Umaru no puede
+-- tocar la numeración de Las Flores ni viceversa (a diferencia de
+-- productos, que es la identidad compartida y cualquiera la edita).
+drop policy if exists "producto_codigos_select" on public.producto_codigos;
+create policy "producto_codigos_select"
+  on public.producto_codigos for select
+  to authenticated
+  using (true);
+
+drop policy if exists "producto_codigos_insert" on public.producto_codigos;
+create policy "producto_codigos_insert"
+  on public.producto_codigos for insert
+  to authenticated
+  with check (almacen = public.almacen_actual() or public.es_admin());
+
+drop policy if exists "producto_codigos_update" on public.producto_codigos;
+create policy "producto_codigos_update"
+  on public.producto_codigos for update
+  to authenticated
+  using (almacen = public.almacen_actual() or public.es_admin())
+  with check (almacen = public.almacen_actual() or public.es_admin());
+
+drop policy if exists "producto_codigos_delete" on public.producto_codigos;
+create policy "producto_codigos_delete"
+  on public.producto_codigos for delete
+  to authenticated
+  using (almacen = public.almacen_actual() or public.es_admin());
 
 drop policy if exists "comprobantes_public_access" on public.comprobantes;
 drop policy if exists "comprobantes_por_almacen" on public.comprobantes;

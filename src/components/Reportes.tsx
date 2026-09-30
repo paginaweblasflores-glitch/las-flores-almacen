@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Movement, Producto, Traspaso, TraspasoEstado } from "../types";
+import type { Movement, ProductoMaestro, Traspaso, TraspasoEstado } from "../types";
 import { supabase, cuentaPorAlmacen, type CuentaAlmacen } from "../supabaseClient";
 import { movementFromRow, traspasoFromRow, etiquetaTraspaso } from "../store";
 import { useToast } from "../toast";
@@ -37,16 +37,17 @@ function fmtFecha(iso: string): string {
   return iso.split("-").reverse().join("/");
 }
 
-// Productos dados de alta en el catálogo compartido dentro del rango — a
-// diferencia de Producto (types.ts, usado en toda la app), acá sí hace
-// falta created_at/creado_en_almacen, así que se arma un tipo aparte nada
-// más para este módulo en vez de cambiar el tipo compartido.
+// Un código "nuevo" para un almacén es el que tuvo su primer movimiento
+// real AHÍ dentro del rango — no cuándo se dio de alta en el catálogo
+// compartido (eso puede haber sido mucho antes, en el OTRO almacén; cada
+// almacén es independiente, ver AGENTS.md). Se calcula a partir de los
+// propios `movements`, no de una consulta aparte a `productos`.
 interface ProductoNuevo {
   codigo: string;
   descripcion: string;
   categoria?: string;
   createdAt: string;
-  creadoEnAlmacen: string;
+  almacen: string;
 }
 
 // ---- Atajos de rango de fechas ----
@@ -76,22 +77,16 @@ const PRESETS: { label: string; rango: () => [Date, Date] }[] = [
 // ---- Fetches directos a Supabase, sin StoreProvider (como AdminDashboard):
 // la sesión del administrador tiene es_admin() = true en RLS, así que una
 // consulta sin .eq("almacen", ...) ya trae filas de los dos almacenes.
-async function fetchMovementsFor(
-  client: NonNullable<typeof supabase>,
-  almacen: string,
-  desde: string,
-  hasta: string,
-): Promise<Movement[]> {
+// Traen el historial COMPLETO de cada almacén (sin filtrar por fecha) una
+// sola vez al montar — el rango, el almacén y el producto se filtran
+// después, client-side, así cambiar cualquier filtro queda instantáneo en
+// vez de ir y volver a la base cada vez (mismo patrón que `AdminDashboard`
+// ya usa para sus KPIs).
+async function fetchMovementsFor(client: NonNullable<typeof supabase>, almacen: string): Promise<Movement[]> {
   const PAGE = 1000;
   const rows: Record<string, unknown>[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await client
-      .from("movements")
-      .select("*")
-      .eq("almacen", almacen)
-      .gte("fecha", desde)
-      .lte("fecha", hasta)
-      .range(from, from + PAGE - 1);
+    const { data, error } = await client.from("movements").select("*").eq("almacen", almacen).range(from, from + PAGE - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE) break;
@@ -99,18 +94,11 @@ async function fetchMovementsFor(
   return rows.map(movementFromRow);
 }
 
-// Trae traspasos donde el envío O la recepción cae en el rango — de acá
-// salen "enviados" y "recibidos" en un solo viaje (se separan al calcular).
-async function fetchTraspasosEnRango(
-  client: NonNullable<typeof supabase>,
-  desde: string,
-  hasta: string,
-): Promise<Traspaso[]> {
+async function fetchTraspasosCompleto(client: NonNullable<typeof supabase>): Promise<Traspaso[]> {
   const PAGE = 1000;
   const rows: Record<string, unknown>[] = [];
-  const filtro = `and(fecha_envio.gte.${desde},fecha_envio.lte.${hasta}),and(fecha_recepcion.gte.${desde},fecha_recepcion.lte.${hasta})`;
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await client.from("traspasos").select("*").or(filtro).range(from, from + PAGE - 1);
+    const { data, error } = await client.from("traspasos").select("*").range(from, from + PAGE - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE) break;
@@ -118,50 +106,50 @@ async function fetchTraspasosEnRango(
   return rows.map(traspasoFromRow);
 }
 
-async function fetchProductosNuevos(
-  client: NonNullable<typeof supabase>,
-  desde: string,
-  hasta: string,
-): Promise<ProductoNuevo[]> {
+// El catálogo MAESTRO completo (no acotado al rango) — solo para el
+// buscador de "filtrar por producto"; independiente de desde/hasta, se
+// trae una sola vez al montar el módulo. Ya no tiene código — la identidad
+// es `id`, el código es local a cada almacén (ver fetchProductoCodigosCompleto).
+async function fetchCatalogoCompleto(client: NonNullable<typeof supabase>): Promise<ProductoMaestro[]> {
   const PAGE = 1000;
   const rows: Record<string, unknown>[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await client
-      .from("productos")
-      .select("codigo, descripcion, categoria, created_at, creado_en_almacen")
-      .gte("created_at", `${desde}T00:00:00`)
-      .lte("created_at", `${hasta}T23:59:59`)
-      .range(from, from + PAGE - 1);
+    const { data, error } = await client.from("productos").select("id, descripcion, unidad_medida, categoria").range(from, from + PAGE - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE) break;
   }
   return rows.map((row) => ({
-    codigo: String(row.codigo ?? ""),
-    descripcion: String(row.descripcion ?? ""),
-    categoria: row.categoria ? String(row.categoria) : undefined,
-    createdAt: String(row.created_at ?? ""),
-    creadoEnAlmacen: String(row.creado_en_almacen ?? ""),
-  }));
-}
-
-// El catálogo COMPLETO (no acotado al rango) — solo para el buscador de
-// "filtrar por producto"; independiente de desde/hasta, se trae una sola
-// vez al montar el módulo.
-async function fetchCatalogoCompleto(client: NonNullable<typeof supabase>): Promise<Producto[]> {
-  const PAGE = 1000;
-  const rows: Record<string, unknown>[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await client.from("productos").select("codigo, descripcion, unidad_medida, categoria").range(from, from + PAGE - 1);
-    if (error) throw error;
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
-  }
-  return rows.map((row) => ({
-    codigo: String(row.codigo ?? ""),
+    id: String(row.id ?? ""),
     descripcion: String(row.descripcion ?? ""),
     unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
     categoria: row.categoria ? String(row.categoria) : undefined,
+  }));
+}
+
+// Qué código local tiene cada almacén para cada producto del catálogo
+// maestro (puede no tener ninguno). Sin filtro — se usa para resolver, una
+// vez elegido un producto, con qué código filtrar los movimientos de CADA
+// almacén (cada uno puede tener uno distinto, o ninguno).
+interface ProductoCodigoRow {
+  almacen: string;
+  productoId: string;
+  codigo: string;
+}
+
+async function fetchProductoCodigosCompleto(client: NonNullable<typeof supabase>): Promise<ProductoCodigoRow[]> {
+  const PAGE = 1000;
+  const rows: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client.from("producto_codigos").select("almacen, producto_id, codigo").range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows.map((row) => ({
+    almacen: String(row.almacen ?? ""),
+    productoId: String(row.producto_id ?? ""),
+    codigo: String(row.codigo ?? ""),
   }));
 }
 
@@ -174,7 +162,6 @@ interface MovementConAlmacen extends Movement {
 interface Datos {
   movimientosPorAlmacen: Record<string, Movement[]>;
   traspasos: Traspaso[];
-  productosNuevos: ProductoNuevo[];
 }
 
 type DetalleTipo = "entradas" | "salidas" | "enviados" | "recibidos" | "productos" | null;
@@ -296,18 +283,24 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
   const [detalle, setDetalle] = useState<DetalleTipo>(null);
   const [descargando, setDescargando] = useState(false);
 
-  // ---- Filtro por producto (opcional): busca en el catálogo completo,
-  // que se trae una sola vez al montar (no depende del rango de fechas).
-  const [catalogo, setCatalogo] = useState<Producto[]>([]);
-  const [productoCodigo, setProductoCodigo] = useState<string | null>(null);
+  // ---- Filtro por producto (opcional): busca por NOMBRE en el catálogo
+  // maestro completo (ya no por código — cada almacén tiene el suyo, ver
+  // ProductoCodigoRow), se trae una sola vez al montar (no depende del
+  // rango de fechas).
+  const [catalogo, setCatalogo] = useState<ProductoMaestro[]>([]);
+  const [productoCodigos, setProductoCodigos] = useState<ProductoCodigoRow[]>([]);
+  const [productoId, setProductoId] = useState<string | null>(null);
   const [busquedaProducto, setBusquedaProducto] = useState("");
   const [resultadosAbiertos, setResultadosAbiertos] = useState(false);
   const buscadorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!supabase) return;
-    fetchCatalogoCompleto(supabase)
-      .then(setCatalogo)
+    Promise.all([fetchCatalogoCompleto(supabase), fetchProductoCodigosCompleto(supabase)])
+      .then(([cat, codigos]) => {
+        setCatalogo(cat);
+        setProductoCodigos(codigos);
+      })
       .catch((e) => console.error("Error cargando el catálogo para el buscador:", e));
   }, []);
 
@@ -319,13 +312,21 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
+  // ${almacen}::${productoId} -> código local de ese almacén para ese
+  // producto (si lo tiene).
+  const codigoPorAlmacenYProducto = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const pc of productoCodigos) m.set(`${pc.almacen}::${pc.productoId}`, pc.codigo);
+    return m;
+  }, [productoCodigos]);
+
   const productoSeleccionado = useMemo(
-    () => (productoCodigo ? catalogo.find((p) => p.codigo === productoCodigo) : undefined),
-    [catalogo, productoCodigo],
+    () => (productoId ? catalogo.find((p) => p.id === productoId) : undefined),
+    [catalogo, productoId],
   );
 
   const resultadosProducto = useMemo(
-    () => filtrarBusqueda(catalogo, busquedaProducto, (p) => p.codigo, (p) => p.descripcion).slice(0, 20),
+    () => filtrarBusqueda(catalogo, busquedaProducto, () => "", (p) => p.descripcion).slice(0, 20),
     [catalogo, busquedaProducto],
   );
 
@@ -337,17 +338,16 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
     (async () => {
       setCargando(true);
       try {
-        const [movsPorAlmacen, traspasos, productosNuevos] = await Promise.all([
-          Promise.all(almacenes.map((c) => fetchMovementsFor(client, c.almacen, desde, hasta))),
-          fetchTraspasosEnRango(client, desde, hasta),
-          fetchProductosNuevos(client, desde, hasta),
+        const [movsPorAlmacen, traspasos] = await Promise.all([
+          Promise.all(almacenes.map((c) => fetchMovementsFor(client, c.almacen))),
+          fetchTraspasosCompleto(client),
         ]);
         if (cancelado) return;
         const movimientosPorAlmacen: Record<string, Movement[]> = {};
         almacenes.forEach((c, idx) => {
           movimientosPorAlmacen[c.almacen] = movsPorAlmacen[idx];
         });
-        setDatos({ movimientosPorAlmacen, traspasos, productosNuevos });
+        setDatos({ movimientosPorAlmacen, traspasos });
       } catch (e) {
         console.error("Error cargando el reporte:", e);
         toast.error("No se pudo cargar el reporte. Revisa tu conexión.");
@@ -360,16 +360,23 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desde, hasta, almacenes, toast]);
+  }, [almacenes, toast]);
 
   const movimientos = useMemo(() => {
     if (!datos) return [] as MovementConAlmacen[];
-    const etiquetados = (almacen: string): MovementConAlmacen[] =>
-      (datos.movimientosPorAlmacen[almacen] ?? []).map((m) => ({ ...m, almacen }));
-    const todos = almacenFiltro === "todos" ? almacenes.flatMap((c) => etiquetados(c.almacen)) : etiquetados(almacenFiltro);
-    if (!productoCodigo) return todos;
-    return todos.filter((m) => m.codigo.toUpperCase().trim() === productoCodigo);
-  }, [datos, almacenFiltro, almacenes, productoCodigo]);
+    // El producto elegido puede tener un código LOCAL distinto (o ninguno)
+    // en cada almacén — se resuelve por separado para cada uno, no es un
+    // único código comparable entre los dos.
+    const etiquetados = (almacen: string): MovementConAlmacen[] => {
+      let ms = (datos.movimientosPorAlmacen[almacen] ?? []).filter((m) => m.fecha >= desde && m.fecha <= hasta);
+      if (productoId) {
+        const codigo = codigoPorAlmacenYProducto.get(`${almacen}::${productoId}`);
+        ms = codigo ? ms.filter((m) => m.codigo.toUpperCase().trim() === codigo) : [];
+      }
+      return ms.map((m) => ({ ...m, almacen }));
+    };
+    return almacenFiltro === "todos" ? almacenes.flatMap((c) => etiquetados(c.almacen)) : etiquetados(almacenFiltro);
+  }, [datos, almacenFiltro, almacenes, productoId, codigoPorAlmacenYProducto, desde, hasta]);
 
   const entradas = useMemo(() => movimientos.filter((m) => m.tipo === "Entrada"), [movimientos]);
   const salidas = useMemo(() => movimientos.filter((m) => m.tipo === "Salida"), [movimientos]);
@@ -385,9 +392,9 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
         (almacenFiltro === "todos" || t.almacenOrigen === almacenFiltro) &&
         t.fechaEnvio >= desde &&
         t.fechaEnvio <= hasta &&
-        (!productoCodigo || t.items.some((it) => it.codigo.toUpperCase().trim() === productoCodigo)),
+        (!productoId || t.items.some((it) => it.productoId === productoId)),
     );
-  }, [datos, almacenFiltro, desde, hasta, productoCodigo]);
+  }, [datos, almacenFiltro, desde, hasta, productoId]);
 
   const recibidos = useMemo(() => {
     if (!datos) return [] as Traspaso[];
@@ -398,17 +405,38 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
         !!t.fechaRecepcion &&
         t.fechaRecepcion >= desde &&
         t.fechaRecepcion <= hasta &&
-        (!productoCodigo || t.items.some((it) => it.codigo.toUpperCase().trim() === productoCodigo)),
+        (!productoId || t.items.some((it) => it.productoId === productoId)),
     );
-  }, [datos, almacenFiltro, desde, hasta, productoCodigo]);
+  }, [datos, almacenFiltro, desde, hasta, productoId]);
 
+  // "Nuevo" es el primer movimiento real de ese código EN ESE ALMACÉN — no
+  // cuándo se dio de alta en el catálogo compartido (que puede ser mucho
+  // antes, del otro lado). Se calcula agrupando los propios movimientos.
   const productosNuevos = useMemo(() => {
     if (!datos) return [] as ProductoNuevo[];
-    let filtrados = datos.productosNuevos;
-    if (almacenFiltro !== "todos") filtrados = filtrados.filter((p) => p.creadoEnAlmacen === almacenFiltro);
-    if (productoCodigo) filtrados = filtrados.filter((p) => p.codigo.toUpperCase().trim() === productoCodigo);
-    return filtrados;
-  }, [datos, almacenFiltro, productoCodigo]);
+    const almacenesAConsiderar = almacenFiltro === "todos" ? almacenes.map((c) => c.almacen) : [almacenFiltro];
+    const resultado: ProductoNuevo[] = [];
+    for (const almacen of almacenesAConsiderar) {
+      // Si hay un producto elegido, este almacén puede no tener ningún
+      // código local para él (nunca lo movió) — en ese caso no aporta nada.
+      const codigoFiltro = productoId ? codigoPorAlmacenYProducto.get(`${almacen}::${productoId}`) : undefined;
+      if (productoId && !codigoFiltro) continue;
+      const primeros = new Map<string, Movement>();
+      for (const m of datos.movimientosPorAlmacen[almacen] ?? []) {
+        if (!m.createdAt) continue;
+        const key = m.codigo.toUpperCase().trim();
+        const actual = primeros.get(key);
+        if (!actual || m.createdAt < (actual.createdAt ?? "")) primeros.set(key, m);
+      }
+      for (const [codigo, m] of primeros) {
+        const fechaAlta = (m.createdAt ?? "").split("T")[0];
+        if (fechaAlta < desde || fechaAlta > hasta) continue;
+        if (codigoFiltro && codigo !== codigoFiltro) continue;
+        resultado.push({ codigo, descripcion: m.descripcion, categoria: m.categoria, createdAt: m.createdAt!, almacen });
+      }
+    }
+    return resultado;
+  }, [datos, almacenFiltro, almacenes, desde, hasta, productoId, codigoPorAlmacenYProducto]);
 
   function aplicarPreset(rango: () => [Date, Date]) {
     const [d, h] = rango();
@@ -446,7 +474,7 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.text(
-        `Almacén: ${nombreAlmacenFiltro}${productoSeleccionado ? ` · Producto: ${productoSeleccionado.codigo} ${productoSeleccionado.descripcion}` : ""}`,
+        `Almacén: ${nombreAlmacenFiltro}${productoSeleccionado ? ` · Producto: ${productoSeleccionado.descripcion}` : ""}`,
         14,
         36,
       );
@@ -564,14 +592,11 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
           </label>
           {productoSeleccionado ? (
             <div className="flex items-center justify-between gap-2 border border-leaf-200 bg-leaf-50 rounded-lg px-3 py-2 max-w-md">
-              <span className="text-sm text-stone-800 truncate">
-                <span className="font-mono text-xs text-leaf-700 mr-1.5">{productoSeleccionado.codigo}</span>
-                {productoSeleccionado.descripcion}
-              </span>
+              <span className="text-sm text-stone-800 truncate">{productoSeleccionado.descripcion}</span>
               <button
                 type="button"
                 onClick={() => {
-                  setProductoCodigo(null);
+                  setProductoId(null);
                   setBusquedaProducto("");
                 }}
                 className="text-xs font-semibold text-stone-500 hover:text-stone-800 flex-shrink-0 cursor-pointer"
@@ -589,7 +614,7 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
                   setResultadosAbiertos(true);
                 }}
                 onFocus={() => setResultadosAbiertos(true)}
-                placeholder="Buscar por código o nombre…"
+                placeholder="Buscar por nombre…"
                 autoComplete="off"
                 className="input"
               />
@@ -600,16 +625,15 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
                   ) : (
                     resultadosProducto.map((p) => (
                       <button
-                        key={p.codigo}
+                        key={p.id}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
-                          setProductoCodigo(p.codigo.toUpperCase().trim());
+                          setProductoId(p.id);
                           setResultadosAbiertos(false);
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-stone-50 border-b border-stone-50 last:border-0 cursor-pointer"
                       >
-                        <span className="font-mono text-xs text-brand-700 flex-shrink-0">{p.codigo}</span>
                         <span className="truncate">{p.descripcion}</span>
                       </button>
                     ))
@@ -697,15 +721,15 @@ export default function Reportes({ almacenes }: { almacenes: CuentaAlmacen[] }) 
         <DetalleModal
           titulo={`Productos nuevos — ${fmtFecha(desde)} al ${fmtFecha(hasta)}${sufijoProducto}`}
           filas={productosNuevos}
-          columnas={["Código", "Producto", "Categoría", "Fecha de alta", "Almacén que lo creó"]}
+          columnas={["Código", "Producto", "Categoría", "Fecha de alta", ...(mostrarAlmacenCol ? ["Almacén"] : [])]}
           onClose={() => setDetalle(null)}
           renderFila={(p: ProductoNuevo) => (
-            <tr key={p.codigo}>
+            <tr key={`${p.almacen}-${p.codigo}`}>
               <td className="px-3 py-2 font-mono text-xs text-brand-700">{p.codigo}</td>
               <td className="px-3 py-2 text-stone-700">{p.descripcion}</td>
               <td className="px-3 py-2 text-stone-500">{p.categoria ?? "—"}</td>
               <td className="px-3 py-2 text-stone-500">{fmtFecha(p.createdAt.split("T")[0])}</td>
-              <td className="px-3 py-2 text-stone-500">{nombreAlmacen(p.creadoEnAlmacen)}</td>
+              {mostrarAlmacenCol && <td className="px-3 py-2 text-stone-500">{nombreAlmacen(p.almacen)}</td>}
             </tr>
           )}
         />

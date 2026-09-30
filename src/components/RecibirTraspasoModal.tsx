@@ -8,7 +8,7 @@ import ComboBox from "./ComboBox";
 const todayISO = () => new Date().toISOString().split("T")[0];
 
 interface LineaState {
-  codigo: string;
+  productoId: string;
   descripcion: string;
   unidadMedida?: string;
   cantidadEnviada: number;
@@ -17,17 +17,20 @@ interface LineaState {
   area: string;
 }
 
-// El código de cada línea ya es una identidad del catálogo compartido (ver
+// `productoId` es la identidad compartida del catálogo maestro (ver
 // Producto en types.ts): no hace falta buscar a qué producto propio
-// corresponde ni crear uno nuevo, como antes de migration-fase13.sql. Lo
-// único que decide el destino por línea es si acepta, cuánto, y en qué área.
+// corresponde ni crear uno nuevo. El código de cada línea es LOCAL al
+// almacén de ORIGEN — no se muestra acá porque no significa nada para
+// quien recibe; el código que le toca a este almacén lo resuelve
+// `recibirTraspaso` solo. Lo único que decide el destino por línea es si
+// acepta, cuánto, y en qué área.
 export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: Traspaso; onClose: () => void }) {
   const { areas, recibirTraspaso, cancelarTraspaso } = useStore();
   const origenNombre = cuentaPorAlmacen(traspaso.almacenOrigen)?.nombre ?? traspaso.almacenOrigen;
 
   const [lineas, setLineas] = useState<LineaState[]>(() =>
     traspaso.items.map((it) => ({
-      codigo: it.codigo,
+      productoId: it.productoId,
       descripcion: it.descripcion,
       unidadMedida: it.unidadMedida,
       cantidadEnviada: it.cantidad,
@@ -49,7 +52,7 @@ export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: 
     setError("");
   }
 
-  type Resuelto = { codigo: string; cantidad: number; area: string };
+  type Resuelto = { productoId: string; cantidad: number; area: string };
 
   function construirResueltos(): { resueltos: Resuelto[] } | { error: string } {
     const resueltos: Resuelto[] = [];
@@ -59,7 +62,7 @@ export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: 
       const cant = Math.floor(Number(l.cantidad));
       if (!cant || cant <= 0) return { error: `Cantidad inválida para "${l.descripcion}".` };
       if (!l.area) return { error: `Falta el área para "${l.descripcion}".` };
-      resueltos.push({ codigo: l.codigo, cantidad: cant, area: l.area });
+      resueltos.push({ productoId: l.productoId, cantidad: cant, area: l.area });
     }
     return { resueltos };
   }
@@ -130,7 +133,7 @@ export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: 
         <div className="flex flex-col gap-3">
           {lineas.map((l, idx) => (
             <div
-              key={l.codigo}
+              key={l.productoId}
               className={`border rounded-lg p-3 flex flex-col gap-2.5 ${
                 l.aceptado ? "border-stone-200" : "border-stone-200 bg-stone-50"
               }`}
@@ -144,7 +147,6 @@ export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: 
                     className="accent-leaf-600 flex-shrink-0"
                   />
                   <span className={`truncate ${l.aceptado ? "text-stone-800" : "text-stone-400 line-through"}`}>
-                    <span className="font-mono text-xs text-brand-700 mr-1.5">{l.codigo}</span>
                     {l.descripcion}
                   </span>
                 </label>

@@ -8,7 +8,7 @@ import { filtrarBusqueda } from "../utils/search";
 const todayISO = () => new Date().toISOString().split("T")[0];
 
 export default function NuevoTraspasoForm({ cuenta }: { cuenta: CuentaAlmacen }) {
-  const { inventory, enviarTraspaso } = useStore();
+  const { inventory, productos, enviarTraspaso } = useStore();
   const otrosAlmacenes = useMemo(
     () => CUENTAS.filter((c) => c.almacen !== cuenta.almacen && !c.esAdmin),
     [cuenta.almacen],
@@ -96,17 +96,32 @@ export default function NuevoTraspasoForm({ cuenta }: { cuenta: CuentaAlmacen })
 
   async function confirmRegister() {
     if (!destinoElegido) return;
-    setEnviando(true);
-    const { error: err, numero } = await enviarTraspaso({
-      almacenDestino: destinoElegido.almacen,
-      items: lines.map((l) => ({
+
+    // El destino resuelve el producto por `productoId` (identidad
+    // compartida), no por `codigo` — el código de cada línea es LOCAL a MI
+    // almacén y puede no significar nada para el otro.
+    const items = [];
+    for (const l of lines) {
+      const productoId = productos.find((p) => p.codigo.toUpperCase().trim() === l.codigo.toUpperCase().trim())?.id;
+      if (!productoId) {
+        setError(`No se encontró el producto "${l.descripcion}" en tu catálogo. Vuelve a intentarlo.`);
+        return;
+      }
+      items.push({
+        productoId,
         codigo: l.codigo,
         descripcion: l.descripcion,
         cantidad: l.cantidad,
         unidadMedida: l.unidadMedida,
         costo: l.costo,
         categoria: l.categoria,
-      })),
+      });
+    }
+
+    setEnviando(true);
+    const { error: err, numero } = await enviarTraspaso({
+      almacenDestino: destinoElegido.almacen,
+      items,
       fecha,
       responsable,
       motivo: motivo.trim() || undefined,

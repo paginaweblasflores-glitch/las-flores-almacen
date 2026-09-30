@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import type { Movement, InventoryItem, MovementType, Comprobante, Traspaso, TraspasoEstado, TraspasoItem, TraspasoItemRecibido, Producto } from "./types";
+import type { Movement, InventoryItem, MovementType, Comprobante, Traspaso, TraspasoEstado, TraspasoItem, TraspasoItemRecibido, Producto, ProductoMaestro } from "./types";
 import { AREAS, DEFAULT_CATEGORIES, UNIDADES_MEDIDA } from "./types";
 import { supabase, cuentaPorAlmacen } from "./supabaseClient";
 import { useToast } from "./toast";
@@ -12,13 +12,17 @@ function unitCost(m: Movement): number {
   return m.cantidad > 0 ? m.valor / m.cantidad : m.valor;
 }
 
-// `catalogo` es opcional: si se pasa (el catálogo compartido completo),
-// todo producto que este almacén todavía no haya movido aparece igual en
-// el inventario, con cantidadDisponible 0 — así Umaru ve desde el día uno
-// los ~333 productos que ya existen en Las Flores, sin tener que esperar a
-// que alguien registre ahí la primera entrada. Sin el parámetro, el
-// comportamiento es el de siempre (inventario = solo lo que se movió).
-export function buildInventory(movements: Movement[], catalogo: Producto[] = []): Map<string, InventoryItem> {
+// El inventario de un almacén es SOLO lo que tiene movimientos reales ahí
+// — cada almacén es independiente (ver AGENTS.md). El catálogo maestro
+// (`productos`, identidad compartida) y el código local de cada almacén
+// (`producto_codigos`) siguen permitiendo que el traspaso funcione sin
+// crear nada a mano, pero NO se mezclan acá: mezclarlo hacía que el
+// inventario de un almacén mostrara productos que en realidad nunca tuvo,
+// con cantidad 0 — confundía los conteos ("334 productos" en Umaru cuando
+// tenía muchos menos). Ver `registrarProductoEnAlmacen`/`NewProductEntryForm`
+// para cómo se resuelve un producto que ya existe en el catálogo maestro
+// pero es nuevo para este almacén, sin duplicar la identidad.
+export function buildInventory(movements: Movement[]): Map<string, InventoryItem> {
   const map = new Map<string, InventoryItem>();
   for (const m of movements) {
     const key = m.codigo.toUpperCase().trim();
@@ -62,24 +66,6 @@ export function buildInventory(movements: Movement[], catalogo: Producto[] = [])
         existing.imagen = m.imagen;
       }
     }
-  }
-  for (const p of catalogo) {
-    const key = p.codigo.toUpperCase().trim();
-    if (map.has(key)) continue;
-    map.set(key, {
-      codigo: p.codigo,
-      descripcion: p.descripcion,
-      cantidadDisponible: 0,
-      unidadMedida: p.unidadMedida,
-      costo: 0,
-      stockMinimo: 0,
-      valor: 0,
-      fechaActualizacion: "",
-      responsable: "",
-      area: "",
-      categoria: p.categoria || DEFAULT_CATEGORIES[0],
-      imagen: p.imagen,
-    });
   }
   return map;
 }
@@ -237,6 +223,7 @@ export function traspasoFromRow(row: Record<string, unknown>): Traspaso {
     responsableEnvio: String(row.responsable_envio),
     motivo: row.motivo ? String(row.motivo) : undefined,
     items: rawItems.map((it) => ({
+      productoId: String(it.productoId ?? ""),
       codigo: String(it.codigo ?? ""),
       descripcion: String(it.descripcion ?? ""),
       cantidad: Number(it.cantidad ?? 0),
@@ -249,6 +236,7 @@ export function traspasoFromRow(row: Record<string, unknown>): Traspaso {
     responsableRecepcion: row.responsable_recepcion ? String(row.responsable_recepcion) : undefined,
     itemsRecibidos: rawItemsRecibidos
       ? rawItemsRecibidos.map((it) => ({
+          productoId: String(it.productoId ?? ""),
           codigo: String(it.codigo ?? ""),
           descripcion: String(it.descripcion ?? ""),
           cantidad: Number(it.cantidad ?? 0),
@@ -260,6 +248,7 @@ export function traspasoFromRow(row: Record<string, unknown>): Traspaso {
       : undefined,
     itemsRechazados: rawItemsRechazados
       ? rawItemsRechazados.map((it) => ({
+          productoId: String(it.productoId ?? ""),
           codigo: String(it.codigo ?? ""),
           descripcion: String(it.descripcion ?? ""),
           cantidad: Number(it.cantidad ?? 0),
@@ -300,9 +289,9 @@ export function etiquetaTraspaso(t: Traspaso): string {
   return `T-${t.numero}`;
 }
 
-function productoFromRow(row: Record<string, unknown>): Producto {
+function productoMaestroFromRow(row: Record<string, unknown>): ProductoMaestro {
   return {
-    codigo: String(row.codigo ?? ""),
+    id: String(row.id ?? ""),
     descripcion: String(row.descripcion ?? ""),
     unidadMedida: row.unidad_medida ? String(row.unidad_medida) : undefined,
     categoria: row.categoria ? String(row.categoria) : undefined,
@@ -310,14 +299,27 @@ function productoFromRow(row: Record<string, unknown>): Producto {
   };
 }
 
-function productoToRow(p: Producto, creadoEnAlmacen: string) {
+function productoMaestroToRow(p: NuevoProductoMaestro, creadoEnAlmacen: string) {
   return {
-    codigo: p.codigo,
     descripcion: p.descripcion,
     unidad_medida: p.unidadMedida ?? null,
     categoria: p.categoria ?? null,
     imagen: p.imagen ?? null,
     creado_en_almacen: creadoEnAlmacen,
+  };
+}
+
+// Mi propia vista de un producto: la identidad compartida (productoMaestro)
+// + el código que le di YO en mi almacén (producto_codigos). Ver Producto
+// en types.ts — por qué `codigo` viaja junto al `id` acá.
+function productoLocal(maestro: ProductoMaestro, codigo: string): Producto {
+  return {
+    id: maestro.id,
+    codigo,
+    descripcion: maestro.descripcion,
+    unidadMedida: maestro.unidadMedida,
+    categoria: maestro.categoria,
+    imagen: maestro.imagen,
   };
 }
 
@@ -353,6 +355,27 @@ interface ProductPatch {
   imagen?: string;
 }
 
+interface NuevoProductoMaestro {
+  descripcion: string;
+  unidadMedida?: string;
+  categoria?: string;
+  imagen?: string;
+}
+
+// Da de alta un producto EN MI ALMACÉN, con el código que yo elegí (o el
+// correlativo automático). Dos casos: `productoId` cuando es un producto
+// que ya existe en el catálogo maestro (la persona confirmó la sugerencia
+// — no se crea identidad nueva, solo mi código local); `nuevo` cuando es
+// una identidad realmente nueva (se crea en el catálogo maestro primero).
+export type RegistrarProductoInput =
+  | { codigo: string; productoId: string }
+  | { codigo: string; nuevo: NuevoProductoMaestro };
+
+export interface RegistrarProductoResult {
+  error: string | null;
+  codigo: string | null;
+}
+
 // Al registrar/editar un movimiento, costo y stockMinimo son opcionales:
 // si no llegan, el store los deriva o usa 0.
 export type MovementInput = Omit<Movement, "id" | "costo" | "stockMinimo" | "valor"> & {
@@ -378,12 +401,13 @@ export interface EnviarTraspasoResult {
   numero: number | null;
 }
 
-// Una línea aceptada al recibir un traspaso: el código ya es una identidad
-// compartida (catálogo único), así que lo único que decide el destino es
-// cuánto acepta y en qué área la guarda — no hay que "resolverla" a un
-// producto propio.
+// Una línea aceptada al recibir un traspaso: `productoId` es la identidad
+// compartida (catálogo maestro), así que lo único que decide el destino es
+// cuánto acepta y en qué área la guarda — el código LOCAL para esa línea
+// lo resuelve `recibirTraspaso` (reusa el que ya tenga, o le asigna el
+// siguiente de mi propia secuencia), no hay que "resolverla" a mano.
 export interface ResueltoTraspasoItem {
-  codigo: string;
+  productoId: string;
   cantidad: number;
   area: string;
 }
@@ -398,9 +422,10 @@ interface StoreCtx {
   categories: string[];
   unidades: string[];
   areas: string[];
-  productos: Producto[];                // catálogo compartido (todos los almacenes)
+  productos: Producto[];                // MI vista: mis códigos locales + la identidad de cada uno
+  catalogoMaestro: ProductoMaestro[];    // catálogo compartido completo (los dos almacenes), sin código
   nextCodigo: () => string;
-  crearProductoEnCatalogo: (p: Producto) => Promise<string | null>;
+  registrarProductoEnAlmacen: (input: RegistrarProductoInput) => Promise<RegistrarProductoResult>;
   addMovement: (m: MovementInput) => string | null;
   addMovements: (list: MovementInput[]) => string | null;
   updateMovement: (id: string, updated: MovementInput) => string | null;
@@ -478,6 +503,7 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
   const [traspasos, setTraspasos] = useState<Traspaso[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [catalogoMaestro, setCatalogoMaestro] = useState<ProductoMaestro[]>([]);
 
   useEffect(() => {
     try {
@@ -547,8 +573,9 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       return { data: rows, error: null as null };
     }
 
-    // Catálogo compartido: sin .eq("almacen", ...) a propósito, es la misma
-    // tabla para cualquier cuenta (ver supabase/migration-fase13.sql).
+    // Catálogo maestro: sin .eq("almacen", ...) a propósito, es la misma
+    // tabla para cualquier cuenta (ver supabase/migration-fase17.sql). Ya
+    // no tiene código — la identidad es `id`.
     async function fetchAllProductos() {
       const PAGE = 1000;
       const rows: Record<string, unknown>[] = [];
@@ -556,7 +583,25 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
         const { data, error } = await client!
           .from("productos")
           .select("*")
-          .order("codigo", { ascending: true })
+          .order("descripcion", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+      }
+      return { data: rows, error: null as null };
+    }
+
+    // Mis propios códigos locales (sí lleva .eq("almacen", ...) — cada
+    // almacén tiene su propia numeración, ver migration-fase17.sql).
+    async function fetchMisProductoCodigos() {
+      const PAGE = 1000;
+      const rows: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client!
+          .from("producto_codigos")
+          .select("producto_id, codigo")
+          .eq("almacen", almacen)
           .range(from, from + PAGE - 1);
         if (error) return { data: null, error };
         rows.push(...(data ?? []));
@@ -566,12 +611,13 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     }
 
     async function loadFromSupabase() {
-      const [movementResult, categoryResult, comprobanteResult, traspasoResult, productoResult] = await Promise.all([
+      const [movementResult, categoryResult, comprobanteResult, traspasoResult, productoResult, codigosResult] = await Promise.all([
         fetchAllMovements(),
         client!.from("categories").select("name").eq("almacen", almacen).order("name"),
         fetchAllComprobantes(),
         fetchAllTraspasos(),
         fetchAllProductos(),
+        fetchMisProductoCodigos(),
       ]);
 
       if (movementResult.error) {
@@ -600,18 +646,29 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
         setTraspasos((traspasoResult.data ?? []).map(traspasoFromRow));
       }
 
-      if (productoResult.error) {
-        console.error("Error cargando el catálogo de productos desde Supabase:", productoResult.error);
+      if (productoResult.error || codigosResult.error) {
+        console.error(
+          "Error cargando el catálogo de productos desde Supabase:",
+          productoResult.error ?? codigosResult.error,
+        );
         toast.error("No se pudo cargar el catálogo de productos.");
       } else {
-        setProductos((productoResult.data ?? []).map(productoFromRow));
+        const maestro = (productoResult.data ?? []).map(productoMaestroFromRow);
+        const porId = new Map(maestro.map((p) => [p.id, p]));
+        const mios: Producto[] = [];
+        for (const row of codigosResult.data ?? []) {
+          const m = porId.get(String(row.producto_id ?? ""));
+          if (m) mios.push(productoLocal(m, String(row.codigo ?? "")));
+        }
+        setCatalogoMaestro(maestro);
+        setProductos(mios);
       }
     }
 
     void loadFromSupabase();
   }, [toast, almacen]);
 
-  const inventory: InventoryItem[] = Array.from(buildInventory(movements, productos).values());
+  const inventory: InventoryItem[] = Array.from(buildInventory(movements).values());
   const numeros = calcularNumeros(comprobantes);
 
   // Entero que le tocará al próximo comprobante de ese tipo, dentro del año en curso.
@@ -685,9 +742,10 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
   const areas = Array.from(new Set([...AREAS, ...usados((m) => m.area)]));
   const categories = Array.from(new Set([...DEFAULT_CATEGORIES, ...dbCategories, ...usados((m) => m.categoria)]));
 
-  // Siguiente código correlativo: máximo código numérico del catálogo
-  // COMPLETO + 1 (no solo lo que este almacén ya movió) — así el
-  // correlativo es global de verdad, sin importar qué almacén lo crea.
+  // Siguiente código correlativo: máximo código numérico de MI PROPIA
+  // lista de productos + 1. `productos` ya viene scopeado a mi almacén
+  // (ver loadFromSupabase), así que esto es automáticamente per-almacén —
+  // cada almacén tiene su propia secuencia, empieza en 1.
   function nextCodigo(): string {
     let max = 0;
     for (const p of productos) {
@@ -699,29 +757,58 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     return String(max + 1);
   }
 
-  // Da de alta un producto en el catálogo compartido (identidad: código,
-  // descripción, unidad, categoría, imagen — NO stock/costo, eso es de
-  // movements). Se llama ANTES de crear el primer movimiento del producto:
-  // movements.codigo tiene FK a productos.codigo, así que el catálogo tiene
-  // que existir primero. Verificado con `.select()`: si el código ya está
-  // tomado (lo acaba de crear el otro almacén, por ejemplo), no se duplica.
-  async function crearProductoEnCatalogo(p: Producto): Promise<string | null> {
-    if (!supabase) return "No hay conexión con el servidor.";
-    const codigo = p.codigo.toUpperCase().trim();
-    const { data, error } = await supabase
-      .from("productos")
-      .insert(productoToRow({ ...p, codigo }, almacen))
-      .select()
-      .single();
-    if (error || !data) {
-      console.error("Error creando producto en el catálogo:", error);
-      if (error?.code === "23505") {
-        return "Ese código ya existe en el catálogo compartido. Búscalo en vez de crearlo de nuevo.";
+  // Da de alta un producto EN MI ALMACÉN, con el código que eligió la
+  // persona (o el correlativo automático de `nextCodigo`). Si `productoId`
+  // viene (la persona confirmó que ya existe en el catálogo maestro — ver
+  // NewProductEntryForm), solo se crea mi fila en `producto_codigos`: NO
+  // se toca la identidad compartida, ya existe. Si viene `nuevo`, primero
+  // se crea la identidad en el catálogo maestro y recién después mi código
+  // local — con rollback del maestro si el segundo insert falla, para no
+  // dejar una identidad húerfana sin ningún almacén que la use.
+  async function registrarProductoEnAlmacen(input: RegistrarProductoInput): Promise<RegistrarProductoResult> {
+    if (!supabase) return { error: "No hay conexión con el servidor.", codigo: null };
+    const client = supabase;
+    const codigo = input.codigo.toUpperCase().trim();
+
+    let maestro: ProductoMaestro;
+    let creado = false;
+    if ("productoId" in input) {
+      const existente = catalogoMaestro.find((p) => p.id === input.productoId);
+      if (!existente) {
+        return { error: "Ese producto ya no está en el catálogo compartido. Vuelve a intentarlo.", codigo: null };
       }
-      return "No se pudo crear el producto en el catálogo. Vuelve a intentarlo.";
+      maestro = existente;
+    } else {
+      const { data, error } = await client
+        .from("productos")
+        .insert(productoMaestroToRow(input.nuevo, almacen))
+        .select()
+        .single();
+      if (error || !data) {
+        console.error("Error creando producto en el catálogo:", error);
+        return { error: "No se pudo crear el producto en el catálogo. Vuelve a intentarlo.", codigo: null };
+      }
+      maestro = productoMaestroFromRow(data);
+      creado = true;
     }
-    setProductos((prev) => [...prev, productoFromRow(data)]);
-    return null;
+
+    const { error: codigoError } = await client
+      .from("producto_codigos")
+      .insert({ almacen, producto_id: maestro.id, codigo });
+    if (codigoError) {
+      console.error("Error asignando código local:", codigoError);
+      if (creado) {
+        void client.from("productos").delete().eq("id", maestro.id);
+      }
+      if (codigoError.code === "23505") {
+        return { error: "Ese código ya está en uso en tu almacén. Elige otro.", codigo: null };
+      }
+      return { error: "No se pudo registrar el producto en tu almacén. Vuelve a intentarlo.", codigo: null };
+    }
+
+    if (creado) setCatalogoMaestro((prev) => [...prev, maestro]);
+    setProductos((prev) => [...prev, productoLocal(maestro, codigo)]);
+    return { error: null, codigo };
   }
 
   function addMovement(m: MovementInput): string | null {
@@ -866,16 +953,19 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     return null;
   }
 
-  // Edita el producto en el catálogo compartido (código, descripción,
-  // unidad, categoría, imagen) y, además, los campos propios de MI almacén
-  // (área, costo, stock mínimo) en mis movimientos. Orden a propósito: el
-  // catálogo primero — si se renombra el código, la FK con "on update
-  // cascade" ya deja movements.codigo en el valor nuevo (en los DOS
-  // almacenes) como parte de esa misma actualización, así que el patch de
-  // movimientos de abajo tiene que filtrar por el código NUEVO, no el viejo.
+  // Edita el producto: descripción/unidad/categoría/imagen se actualizan en
+  // el catálogo MAESTRO (afecta a los dos almacenes, a propósito — es la
+  // misma identidad compartida); el código es LOCAL a MI almacén
+  // (producto_codigos) — renombrarlo ya NO toca al otro almacén (antes,
+  // con el código como PK compartida de productos, un rename cascadeaba
+  // el código también en el otro almacén sin que nadie se lo pidiera).
+  // área/costo/stock mínimo son campos propios de mis movimientos.
   function updateProduct(oldCodigo: string, updated: ProductPatch) {
     const oldUpper = oldCodigo.toUpperCase().trim();
     const newUpper = updated.codigo.toUpperCase().trim();
+    const mio = productos.find((p) => p.codigo.toUpperCase().trim() === oldUpper);
+    if (!mio) return;
+    const productoId = mio.id;
 
     setMovements((prev) =>
       prev.map((m) =>
@@ -896,9 +986,23 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     );
     setProductos((prev) =>
       prev.map((p) =>
-        p.codigo.toUpperCase().trim() === oldUpper
+        p.id === productoId
           ? {
+              ...p,
               codigo: newUpper,
+              descripcion: updated.descripcion.trim(),
+              unidadMedida: updated.unidadMedida !== undefined ? updated.unidadMedida : p.unidadMedida,
+              categoria: updated.categoria || p.categoria,
+              imagen: updated.imagen !== undefined ? updated.imagen : p.imagen,
+            }
+          : p
+      )
+    );
+    setCatalogoMaestro((prev) =>
+      prev.map((p) =>
+        p.id === productoId
+          ? {
+              ...p,
               descripcion: updated.descripcion.trim(),
               unidadMedida: updated.unidadMedida !== undefined ? updated.unidadMedida : p.unidadMedida,
               categoria: updated.categoria || p.categoria,
@@ -912,7 +1016,6 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     const client = supabase;
 
     const catalogoPatch: Record<string, unknown> = {
-      codigo: newUpper,
       descripcion: updated.descripcion.trim(),
       categoria: updated.categoria ?? null,
       imagen: updated.imagen ?? null,
@@ -923,34 +1026,50 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     void client
       .from("productos")
       .update(catalogoPatch)
-      .eq("codigo", oldUpper)
+      .eq("id", productoId)
       .then(({ error }) => {
         if (error) {
           console.error("Error actualizando el catálogo de productos:", error);
           toast.error("El producto no se actualizó en el catálogo compartido. Vuelve a intentarlo.");
-          return;
         }
-        const patch: Record<string, unknown> = {
-          descripcion: updated.descripcion.trim(),
-          area: updated.area,
-          categoria: updated.categoria ?? null,
-          imagen: updated.imagen ?? null,
-        };
-        if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
-        if (updated.costo !== undefined) patch.costo = updated.costo;
-        if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
-        void client
-          .from("movements")
-          .update(patch)
-          .eq("codigo", newUpper)
-          .eq("almacen", almacen)
-          .then(({ error: movError }) => {
-            if (movError) {
-              console.error("Error actualizando producto en Supabase:", movError);
-              toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
-            }
-          });
       });
+
+    const renombrar =
+      newUpper !== oldUpper
+        ? client.from("producto_codigos").update({ codigo: newUpper }).eq("almacen", almacen).eq("codigo", oldUpper)
+        : Promise.resolve({ error: null as { code?: string } | null });
+
+    void renombrar.then(({ error }) => {
+      if (error) {
+        console.error("Error renombrando el código local:", error);
+        toast.error(
+          error.code === "23505"
+            ? "Ese código ya está en uso en tu almacén."
+            : "El código no se pudo renombrar en tu almacén. Vuelve a intentarlo.",
+        );
+        return;
+      }
+      const patch: Record<string, unknown> = {
+        descripcion: updated.descripcion.trim(),
+        area: updated.area,
+        categoria: updated.categoria ?? null,
+        imagen: updated.imagen ?? null,
+      };
+      if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
+      if (updated.costo !== undefined) patch.costo = updated.costo;
+      if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
+      void client
+        .from("movements")
+        .update(patch)
+        .eq("codigo", newUpper)
+        .eq("almacen", almacen)
+        .then(({ error: movError }) => {
+          if (movError) {
+            console.error("Error actualizando producto en Supabase:", movError);
+            toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
+          }
+        });
+    });
   }
 
   function deleteMovement(id: string) {
@@ -965,15 +1084,26 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     }
   }
 
+  // Borra solo MIS movimientos de este código — el producto sigue
+  // existiendo en el catálogo maestro para el otro almacén. También libero
+  // mi código local (producto_codigos): si vuelvo a necesitar este
+  // producto, `nextCodigo`/la búsqueda por nombre lo resuelven de nuevo.
   function deleteProduct(codigo: string) {
     const upper = codigo.toUpperCase().trim();
     setMovements((prev) => prev.filter((m) => m.codigo.toUpperCase().trim() !== upper));
+    setProductos((prev) => prev.filter((p) => p.codigo.toUpperCase().trim() !== upper));
     if (supabase) {
       void supabase.from("movements").delete().ilike("codigo", upper).eq("almacen", almacen).then(({ error }) => {
         if (error) {
           console.error("Error eliminando producto en Supabase:", error);
           toast.error("El producto no se eliminó en el servidor.");
+          return;
         }
+        void supabase!.from("producto_codigos").delete().eq("almacen", almacen).eq("codigo", upper).then(({ error: codigoError }) => {
+          if (codigoError) {
+            console.error("Error liberando el código local:", codigoError);
+          }
+        });
       });
     }
   }
@@ -1220,18 +1350,53 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       return cancelarTraspaso(traspasoId, "Rechazado: no se aceptó ningún producto.");
     }
 
-    // El código ya es una identidad compartida (catálogo único): descripción,
-    // unidad, costo y categoría se toman del snapshot que mandó el origen
-    // (t.items), no hay que volver a pedirlos — lo único que decide el
-    // destino por línea es cuánto acepta y en qué área.
-    const itemsPorCodigo = new Map(t.items.map((it) => [it.codigo.toUpperCase().trim(), it]));
+    // `productoId` es la identidad compartida (catálogo maestro):
+    // descripción, unidad, costo y categoría se toman del snapshot que
+    // mandó el origen (t.items), no hay que volver a pedirlos — lo único
+    // que decide el destino por línea es cuánto acepta y en qué área.
+    const itemsPorProductoId = new Map(t.items.map((it) => [it.productoId, it]));
     const responsableUp = responsable.toUpperCase().trim();
     const loteCreatedAt = new Date().toISOString();
+
+    // Resuelve MI código local para cada línea aceptada: si ya tengo uno
+    // asignado a este producto, lo reuso; si no, le doy el siguiente de MI
+    // propia secuencia — nunca hay que crear nada a mano. Corre ANTES de
+    // insertar los movimientos porque movements.codigo tiene FK a
+    // producto_codigos(almacen, codigo): tiene que existir primero.
+    let siguienteLibre = parseInt(nextCodigo(), 10);
+    const codigosPorProductoId = new Map<string, string>();
+    const nuevosCodigos: { producto_id: string; codigo: string }[] = [];
+    for (const r of resueltos) {
+      const mio = productos.find((p) => p.id === r.productoId);
+      if (mio) {
+        codigosPorProductoId.set(r.productoId, mio.codigo);
+        continue;
+      }
+      const yaAsignado = nuevosCodigos.find((n) => n.producto_id === r.productoId);
+      if (yaAsignado) {
+        codigosPorProductoId.set(r.productoId, yaAsignado.codigo);
+        continue;
+      }
+      const codigo = String(siguienteLibre++);
+      nuevosCodigos.push({ producto_id: r.productoId, codigo });
+      codigosPorProductoId.set(r.productoId, codigo);
+    }
+
+    if (nuevosCodigos.length) {
+      const { error: codigosError } = await supabase
+        .from("producto_codigos")
+        .insert(nuevosCodigos.map((n) => ({ almacen, producto_id: n.producto_id, codigo: n.codigo })));
+      if (codigosError) {
+        console.error("Recepción de traspaso: error asignando código local", codigosError);
+        return "No se pudo asignar el código en tu almacén. Vuelve a intentarlo.";
+      }
+    }
+
     const entradaMs: Movement[] = resueltos.map((r) => {
-      const origen = itemsPorCodigo.get(r.codigo.toUpperCase().trim());
+      const origen = itemsPorProductoId.get(r.productoId);
       return {
         id: crypto.randomUUID(),
-        codigo: r.codigo.toUpperCase().trim(),
+        codigo: codigosPorProductoId.get(r.productoId)!,
         descripcion: (origen?.descripcion ?? "").trim(),
         cantidad: r.cantidad,
         unidadMedida: origen?.unidadMedida,
@@ -1257,21 +1422,30 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       if (data && data.length) {
         await supabase.from("movements").delete().in("id", data.map((r2) => String(r2.id))).eq("almacen", almacen);
       }
+      if (nuevosCodigos.length) {
+        await supabase.from("producto_codigos").delete().eq("almacen", almacen).in("codigo", nuevosCodigos.map((n) => n.codigo));
+      }
       return "No se pudo registrar la recepción. Vuelve a intentarlo.";
     }
     setMovements((prev) => [...prev, ...entradaMs]);
+    if (nuevosCodigos.length) {
+      setProductos((prev) => [
+        ...prev,
+        ...nuevosCodigos.map((n) => productoLocal(catalogoMaestro.find((p) => p.id === n.producto_id)!, n.codigo)),
+      ]);
+    }
 
     // Qué se aceptó y qué no, comparando contra el snapshot original por
-    // código — movementIdsSalida[i] corresponde a items[i] (mismo orden,
+    // producto — movementIdsSalida[i] corresponde a items[i] (mismo orden,
     // ver enviarTraspaso).
-    const aceptadosCodigos = new Set(resueltos.map((r) => r.codigo.toUpperCase().trim()));
-    const itemsRechazados: TraspasoItem[] = t.items.filter((it) => !aceptadosCodigos.has(it.codigo));
+    const aceptadosIds = new Set(resueltos.map((r) => r.productoId));
+    const itemsRechazados: TraspasoItem[] = t.items.filter((it) => !aceptadosIds.has(it.productoId));
     const movementIdsARestituir: string[] = [];
     const movementIdsQueQuedan: string[] = [];
     t.items.forEach((it, idx) => {
       const movId = t.movementIdsSalida[idx];
       if (!movId) return;
-      if (aceptadosCodigos.has(it.codigo)) {
+      if (aceptadosIds.has(it.productoId)) {
         movementIdsQueQuedan.push(movId);
       } else {
         movementIdsARestituir.push(movId);
@@ -1293,9 +1467,10 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     }
 
     const itemsRecibidos: TraspasoItemRecibido[] = resueltos.map((r) => {
-      const origen = itemsPorCodigo.get(r.codigo.toUpperCase().trim());
+      const origen = itemsPorProductoId.get(r.productoId);
       return {
-        codigo: r.codigo.toUpperCase().trim(),
+        productoId: r.productoId,
+        codigo: codigosPorProductoId.get(r.productoId) ?? "",
         descripcion: (origen?.descripcion ?? "").trim(),
         cantidad: r.cantidad,
         unidadMedida: origen?.unidadMedida,
@@ -1443,8 +1618,9 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
         unidades,
         areas,
         productos,
+        catalogoMaestro,
         nextCodigo,
-        crearProductoEnCatalogo,
+        registrarProductoEnAlmacen,
         addMovement,
         addMovements,
         updateMovement,

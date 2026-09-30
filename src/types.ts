@@ -129,11 +129,29 @@ export interface TicketData {
   items: { codigo: string; descripcion: string; cantidad: number; unidadMedida: string }[];
 }
 
-// Identidad de producto compartida entre todos los almacenes (catálogo
-// único). El stock, costo y stock mínimo NO viven acá — eso sigue siendo
-// 100% de cada almacén, en Movement/InventoryItem.
+// La identidad compartida de un producto (descripción, unidad, categoría,
+// imagen) es la misma fila para todos los almacenes — `id` es la clave
+// real, interna, invisible para el usuario. El código que SÍ ve/imprime/
+// busca cada almacén es independiente por almacén (tabla `producto_codigos`,
+// ver supabase/migration-fase17.sql) — por eso acá siempre viene junto al
+// `id`: es "mi código local para este producto", no una identidad en sí.
+// El stock, costo y stock mínimo NO viven acá — eso sigue siendo 100% de
+// cada almacén, en Movement/InventoryItem.
 export interface Producto {
+  id: string;
   codigo: string;
+  descripcion: string;
+  unidadMedida?: string;
+  categoria?: string;
+  imagen?: string;
+}
+
+// El catálogo maestro completo (los dos almacenes), SIN código — un mismo
+// producto puede tener un código distinto en cada almacén, o ninguno
+// todavía. Se usa para sugerir "¿ya existe esto?" al dar de alta un
+// producto nuevo (por nombre, no por código) y en el buscador de Reportes.
+export interface ProductoMaestro {
+  id: string;
   descripcion: string;
   unidadMedida?: string;
   categoria?: string;
@@ -143,7 +161,13 @@ export interface Producto {
 export type TraspasoEstado = "pendiente" | "recibido" | "cancelado";
 
 // Un producto tal como lo mandó el almacén de origen (snapshot al enviar).
+// `productoId` es la identidad real (catálogo compartido) y es la llave
+// que usa el destino para resolver SU PROPIO código local — `codigo` acá
+// es el del ORIGEN, se guarda solo como dato informativo/auditoría, ya no
+// como llave de nada (dos almacenes pueden tener códigos distintos para
+// el mismo producto).
 export interface TraspasoItem {
+  productoId: string;
   codigo: string;
   descripcion: string;
   cantidad: number;
@@ -152,9 +176,9 @@ export interface TraspasoItem {
   categoria?: string;
 }
 
-// Qué área eligió el destino para cada línea aceptada (el código/nombre/
-// unidad/costo/categoría ya vienen del catálogo compartido, no hace falta
-// "resolverlos" a un producto propio — ver Producto en este mismo archivo).
+// Qué área eligió el destino para cada línea aceptada (nombre/unidad/costo/
+// categoría ya vienen del catálogo compartido, no hace falta "resolverlos"
+// a un producto propio — ver Producto en este mismo archivo).
 export interface TraspasoItemRecibido extends TraspasoItem {
   area: string;
 }
