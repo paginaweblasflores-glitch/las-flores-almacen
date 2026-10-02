@@ -117,7 +117,7 @@ export default function ComprobanteTraspaso({ ticket }: { ticket: TraspasoTicket
       <div style={{ textAlign: "center", paddingTop: ticket.motivo ? "55px" : "75px" }}>
         <div style={{ borderTop: "1px solid #000", width: "60%", margin: "0 auto 4px" }} />
         <div style={{ fontSize: "11px", fontWeight: 700, color: "#000" }}>{ticket.responsable}</div>
-        <div style={{ fontSize: "9px", fontWeight: 700, color: "#000" }}>Despachado por</div>
+        <div style={{ fontSize: "9px", fontWeight: 700, color: "#000" }}>Recibí conforme</div>
       </div>
 
       <div style={{ textAlign: "center", borderTop: "1px dashed #000", marginTop: "10px", paddingTop: "5px", fontSize: "9px", fontWeight: 700, color: "#000" }}>
