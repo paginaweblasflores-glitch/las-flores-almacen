@@ -243,19 +243,42 @@ export default function Traspasos({ cuenta }: { cuenta: CuentaAlmacen }) {
                   <tr className="bg-stone-50 text-xs text-stone-400 uppercase tracking-wider">
                     <th className="text-left px-3 py-2">Código</th>
                     <th className="text-left px-3 py-2">Producto</th>
-                    <th className="text-right px-3 py-2">Cantidad</th>
+                    <th className="text-right px-3 py-2">{detalle.estado === "recibido" ? "Enviado" : "Cantidad"}</th>
+                    {detalle.estado === "recibido" && <th className="text-right px-3 py-2">Recibido</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-50">
-                  {detalle.items.map((it, i) => (
-                    <tr key={`${it.codigo}-${i}`}>
-                      <td className="px-3 py-2 font-mono text-xs text-brand-700">{it.codigo}</td>
-                      <td className="px-3 py-2 text-stone-700">{it.descripcion}</td>
-                      <td className="px-3 py-2 text-right font-mono text-stone-700">
-                        {it.cantidad} {it.unidadMedida}
-                      </td>
-                    </tr>
-                  ))}
+                  {detalle.items.map((it, i) => {
+                    // Lo que el destino aceptó de verdad (puede ser menos que lo
+                    // enviado: la diferencia volvió al origen). Sin fila = rechazado.
+                    const recibido = detalle.itemsRecibidos?.find((r) => r.productoId === it.productoId);
+                    const devuelto = recibido ? it.cantidad - recibido.cantidad : it.cantidad;
+                    return (
+                      <tr key={`${it.codigo}-${i}`}>
+                        <td className="px-3 py-2 font-mono text-xs text-brand-700">{it.codigo}</td>
+                        <td className="px-3 py-2 text-stone-700">{it.descripcion}</td>
+                        <td className="px-3 py-2 text-right font-mono text-stone-700 whitespace-nowrap">
+                          {it.cantidad} {it.unidadMedida}
+                        </td>
+                        {detalle.estado === "recibido" && (
+                          <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
+                            {recibido ? (
+                              <span className="text-leaf-800 font-semibold">
+                                {recibido.cantidad} {it.unidadMedida}
+                              </span>
+                            ) : (
+                              <span className="text-brand-700">Rechazado</span>
+                            )}
+                            {devuelto > 0 && (
+                              <span className="block text-[11px] font-sans text-amber-700">
+                                {devuelto} devuelto{devuelto === 1 ? "" : "s"} al origen
+                              </span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
