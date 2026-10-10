@@ -1477,6 +1477,34 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       }
     }
 
+    // Línea aceptada a medias (se enviaron 4, se reciben 3): la salida del
+    // origen se ajusta a lo recibido para que la unidad que falta vuelva a
+    // su stock — antes se perdía. Es el origen quien tiene esos movimientos,
+    // por eso va por RPC (ver migration-fase18.sql).
+    const ajustes: { movId: string; recibido: number; enviado: number }[] = [];
+    t.items.forEach((it, idx) => {
+      const movId = t.movementIdsSalida[idx];
+      const r = resueltos.find((x) => x.productoId === it.productoId);
+      if (movId && r && r.cantidad < it.cantidad) {
+        ajustes.push({ movId, recibido: r.cantidad, enviado: it.cantidad });
+      }
+    });
+
+    if (ajustes.length) {
+      const { error: ajusteError } = await supabase.rpc("traspaso_ajustar_salidas", {
+        traspaso_id: traspasoId,
+        movement_ids: ajustes.map((a) => a.movId),
+        cantidades: ajustes.map((a) => a.recibido),
+      });
+      if (ajusteError) {
+        console.error("Recepción parcial: error ajustando la salida del origen", ajusteError);
+        const ids = entradaMs.map((m) => m.id);
+        await supabase.from("movements").delete().in("id", ids).eq("almacen", almacen);
+        setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
+        return "No se pudo devolver al origen la cantidad no recibida. Vuelve a intentarlo.";
+      }
+    }
+
     const itemsRecibidos: TraspasoItemRecibido[] = resueltos.map((r) => {
       const origen = itemsPorProductoId.get(r.productoId);
       return {
@@ -1509,6 +1537,15 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
 
     if (updError || !updData || updData.length !== 1) {
       console.error("Recepción de traspaso: no se pudo marcar como recibido", updError);
+      if (ajustes.length) {
+        // Deshace el ajuste: la salida del origen vuelve a lo enviado (si el
+        // traspaso ya se canceló, el RPC no aplica y no pasa nada).
+        await supabase.rpc("traspaso_ajustar_salidas", {
+          traspaso_id: traspasoId,
+          movement_ids: ajustes.map((a) => a.movId),
+          cantidades: ajustes.map((a) => a.enviado),
+        });
+      }
       const ids = entradaMs.map((m) => m.id);
       await supabase.from("movements").delete().in("id", ids).eq("almacen", almacen);
       setMovements((prev) => prev.filter((m) => !ids.includes(m.id)));
