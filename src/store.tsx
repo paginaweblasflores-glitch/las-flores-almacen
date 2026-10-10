@@ -1355,6 +1355,17 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     // mandó el origen (t.items), no hay que volver a pedirlos — lo único
     // que decide el destino por línea es cuánto acepta y en qué área.
     const itemsPorProductoId = new Map(t.items.map((it) => [it.productoId, it]));
+
+    // Defensa en el store (no solo en el modal): nunca se recibe más de lo
+    // que el origen envió — si no, el stock del destino inventa unidades.
+    for (const r of resueltos) {
+      const enviado = itemsPorProductoId.get(r.productoId)?.cantidad;
+      if (enviado == null) return "Hay un producto que no pertenece a este traspaso.";
+      if (r.cantidad > enviado) {
+        return `No puedes recibir más de lo enviado (${enviado}) para "${itemsPorProductoId.get(r.productoId)?.descripcion}".`;
+      }
+    }
+
     const responsableUp = responsable.toUpperCase().trim();
     const loteCreatedAt = new Date().toISOString();
 

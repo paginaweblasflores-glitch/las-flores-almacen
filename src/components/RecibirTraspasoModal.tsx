@@ -61,6 +61,9 @@ export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: 
 
       const cant = Math.floor(Number(l.cantidad));
       if (!cant || cant <= 0) return { error: `Cantidad inválida para "${l.descripcion}".` };
+      if (cant > l.cantidadEnviada) {
+        return { error: `No puedes recibir más de lo enviado para "${l.descripcion}" (enviado: ${l.cantidadEnviada}).` };
+      }
       if (!l.area) return { error: `Falta el área para "${l.descripcion}".` };
       resueltos.push({ productoId: l.productoId, cantidad: cant, area: l.area });
     }
@@ -164,8 +167,15 @@ export default function RecibirTraspasoModal({ traspaso, onClose }: { traspaso: 
                     <input
                       type="number"
                       min="1"
+                      max={l.cantidadEnviada}
                       value={l.cantidad}
-                      onChange={(e) => updateLinea(idx, { cantidad: e.target.value })}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        // Tope: no se puede recibir más de lo que se envió.
+                        updateLinea(idx, {
+                          cantidad: n > l.cantidadEnviada ? String(l.cantidadEnviada) : e.target.value,
+                        });
+                      }}
                       onFocus={(e) => e.target.select()}
                       className="input font-mono mt-0.5"
                     />
