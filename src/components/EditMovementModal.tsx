@@ -97,9 +97,10 @@ export default function EditMovementModal({ movement, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-stone-200 flex flex-col gap-4 my-8 animate-in fade-in duration-150">
-        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+    <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      {/* El modal nunca pasa del alto de la pantalla: encabezado y botones fijos, el contenido hace su propio scroll. */}
+      <div className="bg-white rounded-2xl max-w-xl w-full max-h-full p-6 shadow-2xl border border-stone-200 flex flex-col gap-4 animate-in fade-in duration-150">
+        <div className="flex items-center justify-between border-b border-stone-100 pb-3 flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,7 +122,8 @@ export default function EditMovementModal({ movement, onClose }: Props) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 min-h-0 flex-1">
+          <div className="flex flex-col gap-4 overflow-y-auto min-h-0 flex-1 pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Código */}
             <div className="flex flex-col gap-1">
@@ -286,8 +288,9 @@ export default function EditMovementModal({ movement, onClose }: Props) {
               <span>{error}</span>
             </div>
           )}
+          </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}
