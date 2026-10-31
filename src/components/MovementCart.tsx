@@ -28,6 +28,7 @@ export default function MovementCart({ tipo, cuenta }: Props) {
   const [observaciones, setObservaciones] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [ticket, mostrarTicket] = usarImpresionComprobante();
+  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
   const searchRef = useRef<HTMLDivElement>(null);
@@ -113,7 +114,10 @@ export default function MovementCart({ tipo, cuenta }: Props) {
     setConfirmOpen(true);
   }
 
-  function confirmRegister() {
+  async function confirmRegister() {
+    if (guardando) return; // evita doble clic = movimientos duplicados
+    // El número que le toca a ESTE registro, tomado ANTES de guardar.
+    const numeroTicket = proximoNumero("Salida");
     const inputs = lines.map((l) => ({
       codigo: l.codigo.toUpperCase().trim(),
       descripcion: l.descripcion.trim(),
@@ -129,15 +133,19 @@ export default function MovementCart({ tipo, cuenta }: Props) {
       motivo: esSalida && observaciones.trim() ? observaciones.trim() : undefined,
     }));
 
-    const err = addMovements(inputs);
+    setGuardando(true);
+    const err = await addMovements(inputs);
+    setGuardando(false);
     if (err) {
+      // No se guardó: el carrito y el modal quedan como estaban, con el
+      // error a la vista, y NO se imprime comprobante.
       setError(err);
       return;
     }
 
     if (esSalida) {
       mostrarTicket({
-        numero: proximoNumero("Salida"),
+        numero: numeroTicket,
         almacenNombre: cuenta.nombre,
         fecha,
         area: areaDestino,
@@ -434,20 +442,22 @@ export default function MovementCart({ tipo, cuenta }: Props) {
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-stone-600 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
+                disabled={guardando}
+                className="px-4 py-2 text-sm font-semibold text-stone-600 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={confirmRegister}
-                className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition-colors cursor-pointer shadow-xs ${
+                disabled={guardando}
+                className={`px-5 py-2 text-sm font-semibold text-white rounded-lg transition-colors cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed ${
                   esSalida
                     ? "bg-brand-600 hover:bg-brand-700"
                     : "bg-leaf-600 hover:bg-leaf-700"
                 }`}
               >
-                Confirmar y registrar
+                {guardando ? "Guardando…" : "Confirmar y registrar"}
               </button>
             </div>
           </div>

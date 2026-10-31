@@ -426,8 +426,8 @@ interface StoreCtx {
   catalogoMaestro: ProductoMaestro[];    // catálogo compartido completo (los dos almacenes), sin código
   nextCodigo: () => string;
   registrarProductoEnAlmacen: (input: RegistrarProductoInput) => Promise<RegistrarProductoResult>;
-  addMovement: (m: MovementInput) => string | null;
-  addMovements: (list: MovementInput[]) => string | null;
+  addMovement: (m: MovementInput) => Promise<string | null>;
+  addMovements: (list: MovementInput[]) => Promise<string | null>;
   updateMovement: (id: string, updated: MovementInput) => string | null;
   updateProduct: (oldCodigo: string, updated: ProductPatch) => void;
   deleteMovement: (id: string) => void;
@@ -811,7 +811,7 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     return { error: null, codigo };
   }
 
-  function addMovement(m: MovementInput): string | null {
+  async function addMovement(m: MovementInput): Promise<string | null> {
     if (m.tipo === "Salida") {
       const item = buildInventory(movements).get(m.codigo.toUpperCase().trim());
       if (!item || item.cantidadDisponible < m.cantidad) {
@@ -836,23 +836,27 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     setMovements((prev) => [...prev, newM]);
     setComprobantes((prev) => [...prev, comp]);
     if (supabase) {
-      void supabase.from("movements").insert(movementToRow(newM, almacen)).then(({ error }) => {
-        if (error) {
-          console.error("Error guardando movimiento en Supabase:", error);
-          setMovements((prev) => prev.filter((x) => x.id !== newM.id));
-          setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
-          toast.error("El movimiento no se guardó en el servidor. Vuelve a intentarlo.");
-        } else {
-          persistirComprobante(comp);
-          toast.success(`${newM.tipo} de "${newM.descripcion}" guardada (${etiquetaComprobante(comp)}).`);
-        }
-      });
+      let falla: unknown = null;
+      try {
+        const { error } = await supabase.from("movements").insert(movementToRow(newM, almacen));
+        falla = error;
+      } catch (e) {
+        falla = e;
+      }
+      if (falla) {
+        console.error("Error guardando movimiento en Supabase:", falla);
+        setMovements((prev) => prev.filter((x) => x.id !== newM.id));
+        setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
+        return "NO SE GUARDÓ: el movimiento no llegó al servidor. Revisa tu conexión (o cierra sesión y vuelve a entrar) e inténtalo de nuevo.";
+      }
+      persistirComprobante(comp);
+      toast.success(`${newM.tipo} de "${newM.descripcion}" guardada (${etiquetaComprobante(comp)}).`);
     }
     return null;
   }
 
   // Registra varios movimientos a la vez (carrito de entrada/salida).
-  function addMovements(list: MovementInput[]): string | null {
+  async function addMovements(list: MovementInput[]): Promise<string | null> {
     if (list.length === 0) return "El carrito está vacío.";
 
     // Chequeo de stock acumulado: dos líneas del mismo código se descuentan juntas.
@@ -896,24 +900,28 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
 
     if (supabase) {
       const tipo = list[0].tipo;
-      void supabase
-        .from("movements")
-        .insert(newMs.map((m) => movementToRow(m, almacen)))
-        .then(({ error }) => {
-          if (error) {
-            console.error("Error guardando movimientos en Supabase:", error);
-            setMovements((prev) => prev.filter((m) => !newIds.has(m.id)));
-            setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
-            toast.error(
-              `No se guardaron los ${newMs.length} movimientos. Vuelve a intentarlo.`
-            );
-          } else {
-            persistirComprobante(comp);
-            toast.success(
-              `${newMs.length} movimiento(s) de ${tipo} guardados (${etiquetaComprobante(comp)}).`,
-            );
-          }
-        });
+      // Se ESPERA la confirmación de la base antes de devolver éxito: quien
+      // llama (MovementCart) imprime el comprobante solo si esto devuelve
+      // null. Antes devolvía null al instante y el ticket salía aunque el
+      // guardado fallara después — el stock no se descontaba y el siguiente
+      // ticket repetía el mismo número.
+      let falla: unknown = null;
+      try {
+        const { error } = await supabase.from("movements").insert(newMs.map((m) => movementToRow(m, almacen)));
+        falla = error;
+      } catch (e) {
+        falla = e; // sin red / sesión caída: fetch lanza en vez de devolver error
+      }
+      if (falla) {
+        console.error("Error guardando movimientos en Supabase:", falla);
+        setMovements((prev) => prev.filter((m) => !newIds.has(m.id)));
+        setComprobantes((prev) => prev.filter((c) => c.id !== comp.id));
+        return `NO SE GUARDÓ: los ${newMs.length} movimientos no llegaron al servidor, no se descontó el stock y no se generó comprobante. Revisa tu conexión (o cierra sesión y vuelve a entrar) e inténtalo de nuevo.`;
+      }
+      persistirComprobante(comp);
+      toast.success(
+        `${newMs.length} movimiento(s) de ${tipo} guardados (${etiquetaComprobante(comp)}).`,
+      );
     }
     return null;
   }

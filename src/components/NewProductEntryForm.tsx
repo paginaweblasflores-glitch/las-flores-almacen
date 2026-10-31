@@ -132,7 +132,7 @@ export default function NewProductEntryForm() {
       return;
     }
 
-    const err = addMovement({
+    const err = await addMovement({
       codigo: codigoAsignado,
       descripcion: form.descripcion.trim(),
       cantidad: qty,
