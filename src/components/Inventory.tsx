@@ -50,8 +50,9 @@ export default function Inventory() {
 
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  function handleDeleteProduct(codigo: string) {
-    deleteProduct(codigo);
+  async function handleDeleteProduct(codigo: string) {
+    // El aviso de error (si la base no confirma) lo muestra el store.
+    await deleteProduct(codigo);
     setDeletingCode(null);
   }
 

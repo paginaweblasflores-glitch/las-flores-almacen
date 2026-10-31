@@ -428,10 +428,10 @@ interface StoreCtx {
   registrarProductoEnAlmacen: (input: RegistrarProductoInput) => Promise<RegistrarProductoResult>;
   addMovement: (m: MovementInput) => Promise<string | null>;
   addMovements: (list: MovementInput[]) => Promise<string | null>;
-  updateMovement: (id: string, updated: MovementInput) => string | null;
-  updateProduct: (oldCodigo: string, updated: ProductPatch) => void;
-  deleteMovement: (id: string) => void;
-  deleteProduct: (codigo: string) => void;
+  updateMovement: (id: string, updated: MovementInput) => Promise<string | null>;
+  updateProduct: (oldCodigo: string, updated: ProductPatch) => Promise<string | null>;
+  deleteMovement: (id: string) => Promise<string | null>;
+  deleteProduct: (codigo: string) => Promise<string | null>;
   cerrarAnio: (anio: number) => Promise<CierreResult>;
   traspasos: Traspaso[];
   enviarTraspaso: (input: EnviarTraspasoInput) => Promise<EnviarTraspasoResult>;
@@ -926,7 +926,19 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
     return null;
   }
 
-  function updateMovement(id: string, updated: MovementInput): string | null {
+  // Devuelve la lista de movimientos con lo que se quitó vuelto a poner en
+  // su orden original (buildInventory toma el ÚLTIMO movimiento de cada
+  // código, así que el orden importa) — para deshacer un borrado que la
+  // base no confirmó, sin pisar lo que haya cambiado mientras tanto.
+  function restaurarMovimientos(actual: Movement[], antes: Movement[], quitados: Movement[]): Movement[] {
+    const enActual = new Set(actual.map((m) => m.id));
+    const aRestaurar = new Set(quitados.map((m) => m.id));
+    const base = antes.filter((m) => enActual.has(m.id) || aRestaurar.has(m.id));
+    const enBase = new Set(base.map((m) => m.id));
+    return [...base, ...actual.filter((m) => !enBase.has(m.id))];
+  }
+
+  async function updateMovement(id: string, updated: MovementInput): Promise<string | null> {
     // Check stock if updated is a Salida or changes quantities
     const otherMovements = movements.filter((m) => m.id !== id);
     const simulatedInventory = buildInventory(otherMovements);
@@ -949,14 +961,24 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       id,
     };
 
+    const anterior = movements.find((m) => m.id === id);
     setMovements((prev) => prev.map((m) => (m.id === id ? merged : m)));
     if (supabase) {
-      void supabase.from("movements").upsert(movementToRow(merged, almacen)).then(({ error }) => {
-        if (error) {
-          console.error("Error actualizando movimiento en Supabase:", error);
-          toast.error("El cambio no se guardó en el servidor. Vuelve a intentarlo.");
-        }
-      });
+      let falla: { code?: string } | null = null;
+      try {
+        const { data, error } = await supabase.from("movements").upsert(movementToRow(merged, almacen)).select("id");
+        // Sin error pero sin filas = la base no aplicó el cambio (RLS): tampoco es éxito.
+        falla = error ?? (data && data.length === 1 ? null : {});
+      } catch (e) {
+        falla = (e as { code?: string }) ?? {};
+      }
+      if (falla) {
+        console.error("Error actualizando movimiento en Supabase:", falla);
+        if (anterior) setMovements((prev) => prev.map((m) => (m.id === id ? anterior : m)));
+        return falla.code === "23503"
+          ? "NO SE GUARDÓ: ese código no existe en tu almacén. Usa el código de un producto que ya tengas."
+          : "NO SE GUARDÓ: el cambio no llegó al servidor, el movimiento sigue como estaba. Revisa tu conexión (o cierra sesión y vuelve a entrar) e inténtalo de nuevo.";
+      }
     }
     return null;
   }
@@ -968,12 +990,41 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
   // con el código como PK compartida de productos, un rename cascadeaba
   // el código también en el otro almacén sin que nadie se lo pidiera).
   // área/costo/stock mínimo son campos propios de mis movimientos.
-  function updateProduct(oldCodigo: string, updated: ProductPatch) {
+  async function updateProduct(oldCodigo: string, updated: ProductPatch): Promise<string | null> {
     const oldUpper = oldCodigo.toUpperCase().trim();
     const newUpper = updated.codigo.toUpperCase().trim();
     const mio = productos.find((p) => p.codigo.toUpperCase().trim() === oldUpper);
-    if (!mio) return;
+    if (!mio) return "No se encontró el producto en tu almacén.";
     const productoId = mio.id;
+
+    // Foto de lo que se va a cambiar, para deshacerlo en pantalla si la
+    // base no confirma.
+    const movsAntes = movements.filter((m) => m.codigo.toUpperCase().trim() === oldUpper);
+    const productoAntes = mio;
+    const maestroAntes = catalogoMaestro.find((p) => p.id === productoId);
+    const restaurarTodo = () => {
+      const porId = new Map(movsAntes.map((m) => [m.id, m]));
+      setMovements((prev) => prev.map((m) => porId.get(m.id) ?? m));
+      setProductos((prev) => prev.map((p) => (p.id === productoId ? productoAntes : p)));
+      if (maestroAntes) setCatalogoMaestro((prev) => prev.map((p) => (p.id === productoId ? maestroAntes : p)));
+    };
+    const restaurarCompartido = () => {
+      if (!maestroAntes) return;
+      setCatalogoMaestro((prev) => prev.map((p) => (p.id === productoId ? maestroAntes : p)));
+      setProductos((prev) =>
+        prev.map((p) =>
+          p.id === productoId
+            ? {
+                ...p,
+                descripcion: productoAntes.descripcion,
+                unidadMedida: productoAntes.unidadMedida,
+                categoria: productoAntes.categoria,
+                imagen: productoAntes.imagen,
+              }
+            : p,
+        ),
+      );
+    };
 
     setMovements((prev) =>
       prev.map((m) =>
@@ -1020,9 +1071,74 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       )
     );
 
-    if (!supabase) return;
+    if (!supabase) return null;
     const client = supabase;
 
+    // Orden a propósito: primero lo de MI almacén (código y mis movimientos)
+    // y al final la identidad compartida. Si algo falla a mitad, el otro
+    // almacén nunca llega a ver un cambio a medias.
+    const msgGenerico =
+      "NO SE GUARDÓ: el cambio no llegó al servidor. Revisa tu conexión (o cierra sesión y vuelve a entrar) e inténtalo de nuevo.";
+    const renombra = newUpper !== oldUpper;
+
+    // 1) Renombrar mi código (cascadea solo a mis movimientos).
+    if (renombra) {
+      let fallaRen: { code?: string } | null = null;
+      try {
+        const { data, error } = await client
+          .from("producto_codigos")
+          .update({ codigo: newUpper })
+          .eq("almacen", almacen)
+          .eq("codigo", oldUpper)
+          .select("codigo");
+        fallaRen = error ?? (data && data.length === 1 ? null : {});
+      } catch (e) {
+        fallaRen = (e as { code?: string }) ?? {};
+      }
+      if (fallaRen) {
+        console.error("Error renombrando el código local:", fallaRen);
+        restaurarTodo();
+        return fallaRen.code === "23505" ? "Ese código ya está en uso en tu almacén." : msgGenerico;
+      }
+    }
+
+    // 2) Campos propios de mis movimientos.
+    const patch: Record<string, unknown> = {
+      descripcion: updated.descripcion.trim(),
+      area: updated.area,
+      categoria: updated.categoria ?? null,
+      imagen: updated.imagen ?? null,
+    };
+    if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
+    if (updated.costo !== undefined) patch.costo = updated.costo;
+    if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
+    let fallaMov: unknown = null;
+    try {
+      const { data, error } = await client
+        .from("movements")
+        .update(patch)
+        .eq("codigo", newUpper)
+        .eq("almacen", almacen)
+        .select("id");
+      fallaMov = error ?? (data && data.length > 0 ? null : {});
+    } catch (e) {
+      fallaMov = e ?? {};
+    }
+    if (fallaMov) {
+      console.error("Error actualizando producto en Supabase:", fallaMov);
+      if (renombra) {
+        // Deshace el cambio de código para que no quede a medias.
+        try {
+          await client.from("producto_codigos").update({ codigo: oldUpper }).eq("almacen", almacen).eq("codigo", newUpper);
+        } catch {
+          /* si tampoco se puede, la próxima carga muestra el estado real */
+        }
+      }
+      restaurarTodo();
+      return msgGenerico;
+    }
+
+    // 3) Identidad compartida (nombre/unidad/categoría/imagen).
     const catalogoPatch: Record<string, unknown> = {
       descripcion: updated.descripcion.trim(),
       categoria: updated.categoria ?? null,
@@ -1030,90 +1146,85 @@ export function StoreProvider({ children, almacen }: { children: ReactNode; alma
       updated_at: new Date().toISOString(),
     };
     if (updated.unidadMedida !== undefined) catalogoPatch.unidad_medida = updated.unidadMedida || null;
-
-    void client
-      .from("productos")
-      .update(catalogoPatch)
-      .eq("id", productoId)
-      .then(({ error }) => {
-        if (error) {
-          console.error("Error actualizando el catálogo de productos:", error);
-          toast.error("El producto no se actualizó en el catálogo compartido. Vuelve a intentarlo.");
-        }
-      });
-
-    const renombrar =
-      newUpper !== oldUpper
-        ? client.from("producto_codigos").update({ codigo: newUpper }).eq("almacen", almacen).eq("codigo", oldUpper)
-        : Promise.resolve({ error: null as { code?: string } | null });
-
-    void renombrar.then(({ error }) => {
-      if (error) {
-        console.error("Error renombrando el código local:", error);
-        toast.error(
-          error.code === "23505"
-            ? "Ese código ya está en uso en tu almacén."
-            : "El código no se pudo renombrar en tu almacén. Vuelve a intentarlo.",
-        );
-        return;
-      }
-      const patch: Record<string, unknown> = {
-        descripcion: updated.descripcion.trim(),
-        area: updated.area,
-        categoria: updated.categoria ?? null,
-        imagen: updated.imagen ?? null,
-      };
-      if (updated.unidadMedida !== undefined) patch.unidad_medida = updated.unidadMedida || null;
-      if (updated.costo !== undefined) patch.costo = updated.costo;
-      if (updated.stockMinimo !== undefined) patch.stock_minimo = updated.stockMinimo;
-      void client
-        .from("movements")
-        .update(patch)
-        .eq("codigo", newUpper)
-        .eq("almacen", almacen)
-        .then(({ error: movError }) => {
-          if (movError) {
-            console.error("Error actualizando producto en Supabase:", movError);
-            toast.error("El producto no se actualizó en el servidor. Vuelve a intentarlo.");
-          }
-        });
-    });
+    let fallaCat: unknown = null;
+    try {
+      const { data, error } = await client.from("productos").update(catalogoPatch).eq("id", productoId).select("id");
+      fallaCat = error ?? (data && data.length === 1 ? null : {});
+    } catch (e) {
+      fallaCat = e ?? {};
+    }
+    if (fallaCat) {
+      console.error("Error actualizando el catálogo de productos:", fallaCat);
+      restaurarCompartido();
+      return "SE GUARDÓ SOLO PARTE: los datos de tu almacén (código, área, costo, stock mínimo) sí se guardaron, pero el nombre, unidad, categoría e imagen compartidos no. Vuelve a intentarlo.";
+    }
+    return null;
   }
 
-  function deleteMovement(id: string) {
+  async function deleteMovement(id: string): Promise<string | null> {
+    const antes = movements;
+    const quitado = movements.find((m) => m.id === id);
     setMovements((prev) => prev.filter((m) => m.id !== id));
-    if (supabase) {
-      void supabase.from("movements").delete().eq("id", id).eq("almacen", almacen).then(({ error }) => {
-        if (error) {
-          console.error("Error eliminando movimiento en Supabase:", error);
-          toast.error("El movimiento no se eliminó en el servidor.");
-        }
-      });
+    if (!supabase) return null;
+    let falla: unknown = null;
+    try {
+      const { data, error } = await supabase.from("movements").delete().eq("id", id).eq("almacen", almacen).select("id");
+      falla = error ?? (data && data.length === 1 ? null : {});
+    } catch (e) {
+      falla = e ?? {};
     }
+    if (falla) {
+      console.error("Error eliminando movimiento en Supabase:", falla);
+      if (quitado) setMovements((prev) => restaurarMovimientos(prev, antes, [quitado]));
+      const msg =
+        "NO SE ELIMINÓ: el cambio no llegó al servidor, el movimiento sigue en la lista. Revisa tu conexión (o cierra sesión y vuelve a entrar) e inténtalo de nuevo.";
+      toast.error(msg);
+      return msg;
+    }
+    return null;
   }
 
   // Borra solo MIS movimientos de este código — el producto sigue
   // existiendo en el catálogo maestro para el otro almacén. También libero
   // mi código local (producto_codigos): si vuelvo a necesitar este
   // producto, `nextCodigo`/la búsqueda por nombre lo resuelven de nuevo.
-  function deleteProduct(codigo: string) {
+  async function deleteProduct(codigo: string): Promise<string | null> {
     const upper = codigo.toUpperCase().trim();
+    const antes = movements;
+    const quitados = movements.filter((m) => m.codigo.toUpperCase().trim() === upper);
+    const productoQuitado = productos.find((p) => p.codigo.toUpperCase().trim() === upper);
     setMovements((prev) => prev.filter((m) => m.codigo.toUpperCase().trim() !== upper));
     setProductos((prev) => prev.filter((p) => p.codigo.toUpperCase().trim() !== upper));
-    if (supabase) {
-      void supabase.from("movements").delete().ilike("codigo", upper).eq("almacen", almacen).then(({ error }) => {
-        if (error) {
-          console.error("Error eliminando producto en Supabase:", error);
-          toast.error("El producto no se eliminó en el servidor.");
-          return;
-        }
-        void supabase!.from("producto_codigos").delete().eq("almacen", almacen).eq("codigo", upper).then(({ error: codigoError }) => {
-          if (codigoError) {
-            console.error("Error liberando el código local:", codigoError);
-          }
-        });
-      });
+    if (!supabase) return null;
+    let falla: unknown = null;
+    try {
+      const { data, error } = await supabase
+        .from("movements")
+        .delete()
+        .ilike("codigo", upper)
+        .eq("almacen", almacen)
+        .select("id");
+      falla = error ?? (data && data.length > 0 ? null : {});
+    } catch (e) {
+      falla = e ?? {};
     }
+    if (falla) {
+      console.error("Error eliminando producto en Supabase:", falla);
+      setMovements((prev) => restaurarMovimientos(prev, antes, quitados));
+      if (productoQuitado) setProductos((prev) => (prev.some((p) => p.id === productoQuitado.id) ? prev : [...prev, productoQuitado]));
+      const msg =
+        "NO SE ELIMINÓ: el cambio no llegó al servidor, el producto sigue en el inventario. Revisa tu conexión (o cierra sesión y vuelve a entrar) e inténtalo de nuevo.";
+      toast.error(msg);
+      return msg;
+    }
+    // Liberar mi código es de limpieza: si falla no se rompe nada (solo queda reservado).
+    try {
+      const { error: codigoError } = await supabase.from("producto_codigos").delete().eq("almacen", almacen).eq("codigo", upper);
+      if (codigoError) console.error("Error liberando el código local:", codigoError);
+    } catch (e) {
+      console.error("Error liberando el código local:", e);
+    }
+    return null;
   }
 
   // Cierre anual: archiva los movimientos con fecha <= 31/12 del año elegido y

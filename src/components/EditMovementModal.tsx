@@ -28,6 +28,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
     imagen: "",
   });
   const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     if (movement) {
@@ -51,8 +52,9 @@ export default function EditMovementModal({ movement, onClose }: Props) {
 
   if (!movement) return null;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guardando) return;
     if (!form.codigo || !form.descripcion || !form.cantidad || !form.costo || !form.fecha || !form.responsable) {
       setError("Completa código, descripción, cantidad, costo, fecha y responsable.");
       return;
@@ -70,7 +72,8 @@ export default function EditMovementModal({ movement, onClose }: Props) {
       return;
     }
 
-    const err = updateMovement(movement!.id, {
+    setGuardando(true);
+    const err = await updateMovement(movement!.id, {
       codigo: form.codigo.toUpperCase().trim(),
       descripcion: form.descripcion.trim(),
       cantidad: qty,
@@ -85,6 +88,7 @@ export default function EditMovementModal({ movement, onClose }: Props) {
       imagen: form.imagen ? form.imagen : undefined,
     });
 
+    setGuardando(false);
     if (err) {
       setError(err);
     } else {
@@ -293,9 +297,10 @@ export default function EditMovementModal({ movement, onClose }: Props) {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-semibold bg-stone-900 hover:bg-stone-800 text-white rounded-lg transition-colors cursor-pointer shadow-xs"
+              disabled={guardando}
+              className="px-5 py-2 text-sm font-semibold bg-stone-900 hover:bg-stone-800 text-white rounded-lg transition-colors cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Guardar Cambios
+              {guardando ? "Guardando…" : "Guardar Cambios"}
             </button>
           </div>
         </form>

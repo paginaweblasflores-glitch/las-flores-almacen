@@ -28,8 +28,9 @@ export default function MovementsTable({ movements, title, subtitle, emptyMsg = 
 
   const pageItems = movements.slice((page - 1) * pageSize, page * pageSize);
 
-  function handleDelete(id: string) {
-    deleteMovement(id);
+  async function handleDelete(id: string) {
+    // El aviso de error (si la base no confirma) lo muestra el store.
+    await deleteMovement(id);
     setDeletingId(null);
   }
 

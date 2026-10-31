@@ -36,9 +36,10 @@ export default function CodeSearch() {
     setConfirmDeleteProduct(false);
   }
 
-  function handleDeleteProduct() {
+  async function handleDeleteProduct() {
     if (item) {
-      deleteProduct(item.codigo);
+      // El aviso de error (si la base no confirma) lo muestra el store.
+      await deleteProduct(item.codigo);
       setConfirmDeleteProduct(false);
     }
   }

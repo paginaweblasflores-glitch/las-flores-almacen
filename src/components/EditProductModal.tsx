@@ -22,6 +22,7 @@ export default function EditProductModal({ product, onClose }: Props) {
   const [stockMinimo, setStockMinimo] = useState("");
   const [imagen, setImagen] = useState("");
   const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -39,14 +40,16 @@ export default function EditProductModal({ product, onClose }: Props) {
 
   if (!product) return null;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guardando) return;
     if (!codigo.trim() || !descripcion.trim()) {
       setError("El código y la descripción son obligatorios.");
       return;
     }
 
-    updateProduct(product!.codigo, {
+    setGuardando(true);
+    const err = await updateProduct(product!.codigo, {
       codigo: codigo.toUpperCase().trim(),
       descripcion: descripcion.trim(),
       area,
@@ -57,6 +60,11 @@ export default function EditProductModal({ product, onClose }: Props) {
       imagen,
     });
 
+    setGuardando(false);
+    if (err) {
+      setError(err);
+      return;
+    }
     onClose();
   }
 
@@ -188,9 +196,10 @@ export default function EditProductModal({ product, onClose }: Props) {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-semibold bg-stone-900 hover:bg-stone-800 text-white rounded-lg transition-colors cursor-pointer shadow-xs"
+              disabled={guardando}
+              className="px-5 py-2 text-sm font-semibold bg-stone-900 hover:bg-stone-800 text-white rounded-lg transition-colors cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Actualizar Producto
+              {guardando ? "Guardando…" : "Actualizar Producto"}
             </button>
           </div>
         </form>
